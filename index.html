@@ -289,11 +289,11 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
     <h1><span style="color:var(--g400);margin-right:2px">◆</span>Mon<span class="logo-accent">Menu</span></h1>
     <div class="topbar-sub" id="topbar-sub">Planning semaine</div>
   </div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <span id="sync-indicator" title="Synchronisation temps réel" style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--muted);padding:3px 8px;border-radius:20px;border:1px solid var(--border);background:var(--bg);transition:.3s">
-      <span id="sync-dot" style="width:6px;height:6px;border-radius:50%;background:var(--border);flex-shrink:0;transition:.3s"></span>
-      <span id="sync-label">Synchro…</span>
-    </span>
+  <div style="display:flex;align-items:center;gap:6px">
+    <button onclick="openSessionModalFromIndicator()" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-family:'Outfit',sans-serif;transition:.15s" id="sync-indicator" title="Partager / Collaborer">
+      <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;transition:.3s"></span>
+      <span id="sync-label" style="color:var(--muted)">Local</span>
+    </button>
     <div class="week-nav" id="week-nav" style="display:none">
       <button onclick="changeWeek(-1)">&#8249;</button>
       <span class="week-label" id="week-label"></span>
@@ -1807,128 +1807,91 @@ function showToast(msg){
   toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-// ── REAL-TIME SYNC ────────────────────────
-// Uses window.storage shared=true to sync across users in real time
-// Polls every 3 seconds and pushes on every write
+// ── COLLABORATION PAR CODE DE SESSION ─────
+// Chaque session a un code unique à 6 caractères.
+// Les collaborateurs rejoignent via ce code — les données sont synchro en temps réel.
 
-const SYNC_KEYS = {
-  recipes: 'monmenu:recipes',
-  planning: 'monmenu:planning',
-  frigo: 'monmenu:frigo',
-  manualItems: 'monmenu:manualItems',
-  coursesChecked: 'monmenu:coursesChecked',
-};
+let _sessionCode = null;      // Code actif (null = mode local)
+let _localRev = { last: null };
+let _syncInterval = null;
+let _syncErrorCount = 0;
+const _SYNC_MAX_ERRORS = 3;
 
-// Local revision stamps to detect remote changes
-let _localRev = { recipes: null, planning: null, frigo: null, manualItems: null, coursesChecked: null };
+function sessionStorageKey() {
+  return 'monmenu:session:' + _sessionCode;
+}
 
-function setSyncStatus(state) {
+function setSyncStatus(state, extra) {
   const dot = document.getElementById('sync-dot');
   const label = document.getElementById('sync-label');
   const indicator = document.getElementById('sync-indicator');
   if (!dot || !label) return;
   if (state === 'online') {
     dot.style.background = '#22c55e';
-    label.textContent = 'En ligne';
+    label.textContent = '🔗 ' + (_sessionCode || '');
     indicator.style.borderColor = '#bbf7d0';
+    indicator.title = 'Session partagée : ' + _sessionCode;
   } else if (state === 'saving') {
     dot.style.background = '#f59e0b';
-    label.textContent = 'Sauvegarde…';
+    label.textContent = 'Sync…';
     indicator.style.borderColor = '#fde68a';
   } else if (state === 'local') {
-    dot.style.background = 'var(--muted)';
+    dot.style.background = '#94a3b8';
     label.textContent = 'Local';
     indicator.style.borderColor = 'var(--border)';
-    indicator.title = 'Mode local — hébergez le fichier pour la sync multi-utilisateurs';
-  } else if (state === 'error') {
-    dot.style.background = '#ef4444';
-    label.textContent = 'Hors ligne';
-    indicator.style.borderColor = '#fecaca';
+    indicator.title = 'Mode local — cliquez pour créer ou rejoindre une session';
   } else {
     dot.style.background = 'var(--border)';
-    label.textContent = 'Synchro…';
+    label.textContent = '…';
     indicator.style.borderColor = 'var(--border)';
   }
 }
 
 async function pushToStorage() {
-  if (!window.storage || _syncInterval === null && _syncErrorCount >= _SYNC_MAX_ERRORS) return;
-  setSyncStatus('saving');
+  if (!_sessionCode || !window.storage) return;
   try {
     const data = JSON.stringify({
-      recipes: RECIPES,
-      planning,
-      frigo: FRIGO,
-      manualItems,
-      coursesChecked,
-      rev: Date.now(),
+      recipes: RECIPES, planning, frigo: FRIGO,
+      manualItems, coursesChecked, rev: Date.now(),
     });
-    await window.storage.set('monmenu:state', data, true);
+    await window.storage.set(sessionStorageKey(), data, true);
     _localRev.last = data;
     setSyncStatus('online');
   } catch (e) {
-    if (_syncErrorCount <= 1) console.info('Sync push non disponible');
-    setSyncStatus('local');
+    // Silently ignore — don't spam console
   }
 }
 
 let _syncErrorCount = 0;
-const _SYNC_MAX_ERRORS = 2;
+const _SYNC_MAX_ERRORS = 3;
 
 async function pullFromStorage() {
-  if (!window.storage) { setSyncStatus('local'); return; }
+  if (!_sessionCode || !window.storage) return;
   try {
-    const result = await window.storage.get('monmenu:state', true);
+    const result = await window.storage.get(sessionStorageKey(), true);
     _syncErrorCount = 0;
-    if (!result) {
-      // First user — push defaults
-      await pushToStorage();
-      setSyncStatus('online');
-      return;
-    }
-    const remote = JSON.parse(result.value);
-    // Only update if data actually changed (compare JSON)
+    if (!result) { await pushToStorage(); return; }
     const remoteStr = result.value;
     if (remoteStr === _localRev.last) { setSyncStatus('online'); return; }
     _localRev.last = remoteStr;
-
-    // Merge remote into local state
+    const remote = JSON.parse(remoteStr);
     let changed = false;
-    if (remote.recipes && JSON.stringify(remote.recipes) !== JSON.stringify(RECIPES)) {
-      RECIPES = remote.recipes; changed = true;
-    }
-    if (remote.planning && JSON.stringify(remote.planning) !== JSON.stringify(planning)) {
-      planning = remote.planning; changed = true;
-    }
-    if (remote.frigo && JSON.stringify(remote.frigo) !== JSON.stringify(FRIGO)) {
-      FRIGO = remote.frigo; changed = true;
-    }
-    if (remote.manualItems && JSON.stringify(remote.manualItems) !== JSON.stringify(manualItems)) {
-      manualItems = remote.manualItems; changed = true;
-    }
-    if (remote.coursesChecked && JSON.stringify(remote.coursesChecked) !== JSON.stringify(coursesChecked)) {
-      coursesChecked = remote.coursesChecked; changed = true;
-    }
+    if (remote.recipes && JSON.stringify(remote.recipes) !== JSON.stringify(RECIPES)) { RECIPES = remote.recipes; changed = true; }
+    if (remote.planning && JSON.stringify(remote.planning) !== JSON.stringify(planning)) { planning = remote.planning; changed = true; }
+    if (remote.frigo && JSON.stringify(remote.frigo) !== JSON.stringify(FRIGO)) { FRIGO = remote.frigo; changed = true; }
+    if (remote.manualItems && JSON.stringify(remote.manualItems) !== JSON.stringify(manualItems)) { manualItems = remote.manualItems; changed = true; }
+    if (remote.coursesChecked && JSON.stringify(remote.coursesChecked) !== JSON.stringify(coursesChecked)) { coursesChecked = remote.coursesChecked; changed = true; }
     if (changed) {
-      // Re-render active views
-      renderPlanning();
-      renderRecipes();
-      renderFrigo();
-      buildCourses();
-      renderBudget();
-      showToast('🔄 Planning mis à jour');
+      renderPlanning(); renderRecipes(); renderFrigo(); buildCourses(); renderBudget();
+      showToast('🔄 Mis à jour par un collaborateur');
     }
     setSyncStatus('online');
   } catch (e) {
     _syncErrorCount++;
-    if (_syncErrorCount <= 1) {
-      console.info('Sync non disponible — mode local activé');
-    }
     if (_syncErrorCount >= _SYNC_MAX_ERRORS && _syncInterval) {
-      clearInterval(_syncInterval);
-      _syncInterval = null;
+      clearInterval(_syncInterval); _syncInterval = null;
+      setSyncStatus('local');
     }
-    setSyncStatus('local');
   }
 }
 
@@ -1988,49 +1951,191 @@ window.importRecipeFromUrl = async function() {
   await pushToStorage();
 };
 
-// Poll every 3 seconds
-let _syncInterval = null;
-function startSync() {
-  pullFromStorage(); // Initial pull
+function startSync(code) {
+  _sessionCode = code.toUpperCase();
+  if (_syncInterval) clearInterval(_syncInterval);
+  _syncErrorCount = 0;
+  _localRev.last = null;
+  pullFromStorage();
   _syncInterval = setInterval(pullFromStorage, 3000);
+  setSyncStatus('online');
+}
+
+function stopSync() {
+  if (_syncInterval) { clearInterval(_syncInterval); _syncInterval = null; }
+  _sessionCode = null;
+  setSyncStatus('local');
+}
+
+// ── SESSION MODAL ─────────────────────────
+function openSessionModal() {
+  document.getElementById('modal-session').classList.add('open');
+}
+
+function generateCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+async function createSession() {
+  if (!window.storage) { showToast('⚠️ Sync non disponible dans ce contexte'); return; }
+  const code = generateCode();
+  startSync(code);
+  await pushToStorage();
+  document.getElementById('session-created-code').textContent = code;
+  document.getElementById('session-step-create').style.display = 'block';
+  document.getElementById('session-step-join').style.display = 'none';
+  document.getElementById('session-step-active').style.display = 'none';
+  showToast('✅ Session créée : ' + code);
+}
+
+async function joinSession() {
+  const inp = document.getElementById('session-join-input') || document.getElementById('session-join-input2');
+  const code = inp ? inp.value.trim().toUpperCase() : '';
+  if (code.length < 4) { showToast('Code invalide'); return; }
+  if (!window.storage) { showToast('⚠️ Sync non disponible dans ce contexte'); return; }
+  try {
+    const result = await window.storage.get('monmenu:session:' + code, true);
+    if (!result) { showToast('❌ Session introuvable — vérifiez le code'); return; }
+    startSync(code);
+    closeModal('modal-session');
+    showToast('✅ Rejoint la session ' + code);
+  } catch(e) {
+    showToast('❌ Impossible de rejoindre — réessayez');
+  }
+}
+
+function leaveSession() {
+  stopSync();
+  closeModal('modal-session');
+  showToast('Session quittée — mode local');
+}
+
+function copySessionCode() {
+  const code = document.getElementById('session-created-code').textContent;
+  navigator.clipboard?.writeText(code).then(() => showToast('📋 Code copié !'));
+}
+
+function showSessionJoin() {
+  document.getElementById('session-step-create').style.display = 'none';
+  document.getElementById('session-step-join').style.display = 'block';
+  document.getElementById('session-step-active').style.display = 'none';
+}
+
+function openSessionModalFromIndicator() {
+  const modal = document.getElementById('modal-session');
+  // Show correct panel based on current state
+  if (_sessionCode) {
+    document.getElementById('session-step-create').style.display = 'none';
+    document.getElementById('session-step-join').style.display = 'none';
+    document.getElementById('session-step-active').style.display = 'block';
+    document.getElementById('session-active-code').textContent = _sessionCode;
+  } else {
+    document.getElementById('session-step-create').style.display = 'none';
+    document.getElementById('session-step-join').style.display = 'none';
+    document.getElementById('session-step-active').style.display = 'none';
+  }
+  modal.classList.add('open');
 }
 
 // ── PDF FIX ────────────────────────────────
-// Ensure lastBuiltSections is always populated before export
 const _origExportPDF = exportPDF;
 window.exportPDF = function() {
-  if (!window.jspdf) {
-    showToast('⚠️ PDF non disponible — rechargez la page');
-    return;
-  }
-  buildCourses(); // Ensure sections are built
-  // Small delay to let buildCourses render
+  if (!window.jspdf) { showToast('⚠️ PDF non disponible — rechargez la page'); return; }
+  buildCourses();
   setTimeout(() => {
     try { _origExportPDF(); }
-    catch(e) { console.error('PDF error', e); showToast('Erreur PDF. Réessayez.'); }
+    catch(e) { showToast('Erreur PDF. Réessayez.'); }
   }, 50);
 };
 
 const _origExportPlanningPDF = exportPlanningPDF;
 window.exportPlanningPDF = function() {
-  if (!window.jspdf) {
-    showToast('⚠️ PDF non disponible — rechargez la page');
-    return;
-  }
+  if (!window.jspdf) { showToast('⚠️ PDF non disponible — rechargez la page'); return; }
   try { _origExportPlanningPDF(); }
-  catch(e) { console.error('PDF error', e); showToast('Erreur PDF. Réessayez.'); }
+  catch(e) { showToast('Erreur PDF. Réessayez.'); }
 };
 
 // ── INIT ─────────────────────────────────
 document.getElementById('week-nav').style.display='flex';
 renderPlanning();renderRecipes();renderFrigo();buildCourses();renderBudget();
-// Start real-time sync
-if (window.storage) {
-  startSync();
-} else {
-  setSyncStatus('error');
-  console.info('window.storage not available — running in local-only mode');
-}
+setSyncStatus('local');
 </script>
+<!-- MODAL SESSION COLLABORATION -->
+<div class="modal-bg" id="modal-session" onclick="bgClose(event,'modal-session')">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <div class="modal-title">👥 Collaborer en temps réel</div>
+      <button class="modal-close" onclick="closeModal('modal-session')">&#x2715;</button>
+    </div>
+
+    <!-- Panneau actif : session en cours -->
+    <div id="session-step-active" style="display:none">
+      <div style="background:var(--g50);border:1px solid var(--g100);border-radius:var(--r-lg);padding:16px;text-align:center;margin-bottom:16px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;font-weight:600;letter-spacing:.06em">Session active</div>
+        <div id="session-active-code" style="font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:var(--g600);letter-spacing:6px"></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">Partagez ce code avec vos collaborateurs</div>
+      </div>
+      <button class="btn" style="width:100%;justify-content:center;margin-bottom:8px" onclick="navigator.clipboard?.writeText(document.getElementById('session-active-code').textContent).then(()=>showToast('📋 Code copié !'))">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        Copier le code
+      </button>
+      <button class="btn danger" style="width:100%;justify-content:center" onclick="leaveSession()">
+        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Quitter la session
+      </button>
+    </div>
+
+    <!-- Panneau accueil : créer ou rejoindre -->
+    <div id="session-step-home">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">Créez une session et partagez le code à vos proches — ils voient et modifient le planning en temps réel.</p>
+
+      <button class="btn primary" style="width:100%;justify-content:center;margin-bottom:10px;padding:12px" onclick="createSession()">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Créer une nouvelle session
+      </button>
+
+      <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:11px;color:var(--muted)">ou</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+
+      <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:6px">Rejoindre une session existante</label>
+      <div style="display:flex;gap:8px">
+        <input id="session-join-input" placeholder="Code à 6 caractères" style="text-transform:uppercase;letter-spacing:4px;font-size:16px;font-weight:700;text-align:center" maxlength="8" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')joinSession()">
+        <button class="btn primary" onclick="joinSession()" style="flex-shrink:0">Rejoindre</button>
+      </div>
+    </div>
+
+    <!-- Confirmation code créé -->
+    <div id="session-step-create" style="display:none">
+      <div style="background:var(--g50);border:1px solid var(--g100);border-radius:var(--r-lg);padding:16px;text-align:center;margin-bottom:16px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;font-weight:600;letter-spacing:.06em">Votre code de session</div>
+        <div id="session-created-code" style="font-family:'Playfair Display',serif;font-size:40px;font-weight:700;color:var(--g600);letter-spacing:8px"></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">Partagez ce code avec vos proches.<br>Ils peuvent rejoindre depuis leur propre appareil.</div>
+      </div>
+      <button class="btn primary" style="width:100%;justify-content:center;margin-bottom:8px" onclick="copySessionCode()">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        Copier le code
+      </button>
+      <button class="btn" style="width:100%;justify-content:center" onclick="closeModal('modal-session')">C'est parti !</button>
+    </div>
+
+    <!-- Panneau rejoindre -->
+    <div id="session-step-join" style="display:none">
+      <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:6px">Code de session</label>
+      <input id="session-join-input2" placeholder="Ex : AB3K7F" style="text-transform:uppercase;letter-spacing:4px;font-size:18px;font-weight:700;text-align:center;margin-bottom:10px" maxlength="8" oninput="this.value=this.value.toUpperCase()">
+      <button class="btn primary" style="width:100%;justify-content:center" onclick="joinSession()">Rejoindre</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Show home panel by default when modal opens without active session
+document.getElementById('modal-session').addEventListener('click', function(){});
+// Hide step panels on init
+['session-step-active','session-step-create','session-step-join'].forEach(id=>document.getElementById(id).style.display='none');
+</script>
+
 </body>
 </html>
