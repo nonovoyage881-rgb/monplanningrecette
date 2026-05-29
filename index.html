@@ -264,7 +264,7 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
 .voice-progress-bar{height:4px;background:var(--border);border-radius:4px;overflow:hidden}
 .voice-progress-fill{height:4px;background:var(--g600);border-radius:4px;transition:width .4s ease;width:0%}
 .steps-list li.voice-active{background:var(--g50);border-radius:8px;padding-left:8px;outline:2px solid var(--g400);transition:.3s}
-position:fixed;bottom:calc(var(--nav-h) + 12px);left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a18;color:#fff;padding:10px 18px;border-radius:var(--r);font-size:13px;font-weight:500;z-index:200;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap}
+.toast{position:fixed;bottom:calc(var(--nav-h) + 12px);left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a18;color:#fff;padding:10px 18px;border-radius:var(--r);font-size:13px;font-weight:500;z-index:200;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:4px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -289,10 +289,16 @@ position:fixed;bottom:calc(var(--nav-h) + 12px);left:50%;transform:translateX(-5
     <h1><span style="color:var(--g400);margin-right:2px">◆</span>Mon<span class="logo-accent">Menu</span></h1>
     <div class="topbar-sub" id="topbar-sub">Planning semaine</div>
   </div>
-  <div class="week-nav" id="week-nav" style="display:none">
-    <button onclick="changeWeek(-1)">&#8249;</button>
-    <span class="week-label" id="week-label"></span>
-    <button onclick="changeWeek(1)">&#8250;</button>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span id="sync-indicator" title="Synchronisation temps réel" style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--muted);padding:3px 8px;border-radius:20px;border:1px solid var(--border);background:var(--bg);transition:.3s">
+      <span id="sync-dot" style="width:6px;height:6px;border-radius:50%;background:var(--border);flex-shrink:0;transition:.3s"></span>
+      <span id="sync-label">Synchro…</span>
+    </span>
+    <div class="week-nav" id="week-nav" style="display:none">
+      <button onclick="changeWeek(-1)">&#8249;</button>
+      <span class="week-label" id="week-label"></span>
+      <button onclick="changeWeek(1)">&#8250;</button>
+    </div>
   </div>
 </div>
 
@@ -1801,9 +1807,230 @@ function showToast(msg){
   toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
 }
 
+// ── REAL-TIME SYNC ────────────────────────
+// Uses window.storage shared=true to sync across users in real time
+// Polls every 3 seconds and pushes on every write
+
+const SYNC_KEYS = {
+  recipes: 'monmenu:recipes',
+  planning: 'monmenu:planning',
+  frigo: 'monmenu:frigo',
+  manualItems: 'monmenu:manualItems',
+  coursesChecked: 'monmenu:coursesChecked',
+};
+
+// Local revision stamps to detect remote changes
+let _localRev = { recipes: null, planning: null, frigo: null, manualItems: null, coursesChecked: null };
+
+function setSyncStatus(state) {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  const indicator = document.getElementById('sync-indicator');
+  if (!dot || !label) return;
+  if (state === 'online') {
+    dot.style.background = '#22c55e';
+    label.textContent = 'En ligne';
+    indicator.style.borderColor = '#bbf7d0';
+  } else if (state === 'saving') {
+    dot.style.background = '#f59e0b';
+    label.textContent = 'Sauvegarde…';
+    indicator.style.borderColor = '#fde68a';
+  } else if (state === 'local') {
+    dot.style.background = 'var(--muted)';
+    label.textContent = 'Local';
+    indicator.style.borderColor = 'var(--border)';
+    indicator.title = 'Mode local — hébergez le fichier pour la sync multi-utilisateurs';
+  } else if (state === 'error') {
+    dot.style.background = '#ef4444';
+    label.textContent = 'Hors ligne';
+    indicator.style.borderColor = '#fecaca';
+  } else {
+    dot.style.background = 'var(--border)';
+    label.textContent = 'Synchro…';
+    indicator.style.borderColor = 'var(--border)';
+  }
+}
+
+async function pushToStorage() {
+  if (!window.storage || _syncInterval === null && _syncErrorCount >= _SYNC_MAX_ERRORS) return;
+  setSyncStatus('saving');
+  try {
+    const data = JSON.stringify({
+      recipes: RECIPES,
+      planning,
+      frigo: FRIGO,
+      manualItems,
+      coursesChecked,
+      rev: Date.now(),
+    });
+    await window.storage.set('monmenu:state', data, true);
+    _localRev.last = data;
+    setSyncStatus('online');
+  } catch (e) {
+    if (_syncErrorCount <= 1) console.info('Sync push non disponible');
+    setSyncStatus('local');
+  }
+}
+
+let _syncErrorCount = 0;
+const _SYNC_MAX_ERRORS = 2;
+
+async function pullFromStorage() {
+  if (!window.storage) { setSyncStatus('local'); return; }
+  try {
+    const result = await window.storage.get('monmenu:state', true);
+    _syncErrorCount = 0;
+    if (!result) {
+      // First user — push defaults
+      await pushToStorage();
+      setSyncStatus('online');
+      return;
+    }
+    const remote = JSON.parse(result.value);
+    // Only update if data actually changed (compare JSON)
+    const remoteStr = result.value;
+    if (remoteStr === _localRev.last) { setSyncStatus('online'); return; }
+    _localRev.last = remoteStr;
+
+    // Merge remote into local state
+    let changed = false;
+    if (remote.recipes && JSON.stringify(remote.recipes) !== JSON.stringify(RECIPES)) {
+      RECIPES = remote.recipes; changed = true;
+    }
+    if (remote.planning && JSON.stringify(remote.planning) !== JSON.stringify(planning)) {
+      planning = remote.planning; changed = true;
+    }
+    if (remote.frigo && JSON.stringify(remote.frigo) !== JSON.stringify(FRIGO)) {
+      FRIGO = remote.frigo; changed = true;
+    }
+    if (remote.manualItems && JSON.stringify(remote.manualItems) !== JSON.stringify(manualItems)) {
+      manualItems = remote.manualItems; changed = true;
+    }
+    if (remote.coursesChecked && JSON.stringify(remote.coursesChecked) !== JSON.stringify(coursesChecked)) {
+      coursesChecked = remote.coursesChecked; changed = true;
+    }
+    if (changed) {
+      // Re-render active views
+      renderPlanning();
+      renderRecipes();
+      renderFrigo();
+      buildCourses();
+      renderBudget();
+      showToast('🔄 Planning mis à jour');
+    }
+    setSyncStatus('online');
+  } catch (e) {
+    _syncErrorCount++;
+    if (_syncErrorCount <= 1) {
+      console.info('Sync non disponible — mode local activé');
+    }
+    if (_syncErrorCount >= _SYNC_MAX_ERRORS && _syncInterval) {
+      clearInterval(_syncInterval);
+      _syncInterval = null;
+    }
+    setSyncStatus('local');
+  }
+}
+
+// Wrap all state-mutating functions to auto-push
+const _origRemoveMeal = removeMeal;
+window.removeMeal = function(day, slot) { _origRemoveMeal(day, slot); pushToStorage(); };
+
+const _origClearPlanning = clearPlanning;
+window.clearPlanning = function() { _origClearPlanning(); pushToStorage(); };
+
+const _origDeleteRecipe = deleteRecipe;
+window.deleteRecipe = function(id) { _origDeleteRecipe(id); pushToStorage(); };
+
+const _origSaveRecipe = saveRecipe;
+window.saveRecipe = function() { _origSaveRecipe(); pushToStorage(); };
+
+const _origCycleFrigo = cycleFrigo;
+window.cycleFrigo = function(id) { _origCycleFrigo(id); pushToStorage(); };
+
+const _origDelFrigo = delFrigo;
+window.delFrigo = function(id) { _origDelFrigo(id); pushToStorage(); };
+
+const _origSaveFrigoItem = saveFrigoItem;
+window.saveFrigoItem = function() { _origSaveFrigoItem(); pushToStorage(); };
+
+const _origAddManualIng = addManualIng;
+window.addManualIng = function() { _origAddManualIng(); pushToStorage(); };
+
+const _origRemoveManualItem = removeManualItem;
+window.removeManualItem = function(id) { _origRemoveManualItem(id); pushToStorage(); };
+
+const _origToggleCourse = toggleCourse;
+window.toggleCourse = function(id) { _origToggleCourse(id); pushToStorage(); };
+
+const _origCheckAllCourses = checkAllCourses;
+window.checkAllCourses = function() { _origCheckAllCourses(); pushToStorage(); };
+
+const _origAddSeasonToList = addSeasonToList;
+window.addSeasonToList = function() { _origAddSeasonToList(); pushToStorage(); };
+
+// Patch closeModal so meal assignments push; also integrates voice stop
+// The voice section already wraps closeModal, so we wrap that wrapper
+const _syncOrigClose = window.closeModal;
+window.closeModal = function(id) {
+  if (id === 'modal-pick') { setTimeout(pushToStorage, 100); }
+  _syncOrigClose && _syncOrigClose(id);
+};
+
+// Intercept quickAdd
+const _origQuickAdd = quickAdd;
+window.quickAdd = function(id) { _origQuickAdd(id); pushToStorage(); };
+
+// Import from URL also pushes
+const _origImportRecipeFromUrl = importRecipeFromUrl;
+window.importRecipeFromUrl = async function() {
+  await _origImportRecipeFromUrl();
+  await pushToStorage();
+};
+
+// Poll every 3 seconds
+let _syncInterval = null;
+function startSync() {
+  pullFromStorage(); // Initial pull
+  _syncInterval = setInterval(pullFromStorage, 3000);
+}
+
+// ── PDF FIX ────────────────────────────────
+// Ensure lastBuiltSections is always populated before export
+const _origExportPDF = exportPDF;
+window.exportPDF = function() {
+  if (!window.jspdf) {
+    showToast('⚠️ PDF non disponible — rechargez la page');
+    return;
+  }
+  buildCourses(); // Ensure sections are built
+  // Small delay to let buildCourses render
+  setTimeout(() => {
+    try { _origExportPDF(); }
+    catch(e) { console.error('PDF error', e); showToast('Erreur PDF. Réessayez.'); }
+  }, 50);
+};
+
+const _origExportPlanningPDF = exportPlanningPDF;
+window.exportPlanningPDF = function() {
+  if (!window.jspdf) {
+    showToast('⚠️ PDF non disponible — rechargez la page');
+    return;
+  }
+  try { _origExportPlanningPDF(); }
+  catch(e) { console.error('PDF error', e); showToast('Erreur PDF. Réessayez.'); }
+};
+
 // ── INIT ─────────────────────────────────
 document.getElementById('week-nav').style.display='flex';
 renderPlanning();renderRecipes();renderFrigo();buildCourses();renderBudget();
+// Start real-time sync
+if (window.storage) {
+  startSync();
+} else {
+  setSyncStatus('error');
+  console.info('window.storage not available — running in local-only mode');
+}
 </script>
 </body>
 </html>
