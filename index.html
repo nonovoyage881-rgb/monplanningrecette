@@ -145,6 +145,9 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
 .tag.pink{background:#fce8f0;color:#9c3060}
 .tag.purple{background:#ede8fc;color:#5b3db0}
 .tag.blue{background:#e8f6fd;color:#0e6e9c}
+.badge-conserves{background:#fef3e2;color:#b45309}
+.badge-confiture{background:#fdf2f8;color:#9d174d}
+.badge-pate{background:#fef2f2;color:#991b1b}
 /* Courses header */
 .courses-header-block{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px}
 .courses-big-title{font-family:'Playfair Display',serif;font-weight:700;font-size:28px;line-height:1.15;color:var(--text);letter-spacing:-.02em}
@@ -375,6 +378,9 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
     <span class="chip" data-tag="plaisirs" onclick="toggleTag(this,'plaisirs')">😋 Petits plaisirs</span>
     <span class="chip" data-tag="patisserie" onclick="toggleTag(this,'patisserie')">🎂 Pâtisserie</span>
     <span class="chip" data-tag="boisson" onclick="toggleTag(this,'boisson')">🍹 Boissons maison</span>
+    <span class="chip" data-tag="conserves" onclick="toggleTag(this,'conserves')">🥫 Conserves</span>
+    <span class="chip" data-tag="confiture" onclick="toggleTag(this,'confiture')">🍯 Confitures</span>
+    <span class="chip" data-tag="pate" onclick="toggleTag(this,'pate')">🥩 Pâtés</span>
   </div>
   <div class="recipes-list" id="recipes-list"></div>
 </div>
@@ -569,6 +575,9 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
         <span class="chip" data-t="plaisirs" onclick="this.classList.toggle('active')">😋 Petits plaisirs</span>
         <span class="chip" data-t="patisserie" onclick="this.classList.toggle('active')">🎂 Pâtisserie</span>
         <span class="chip" data-t="boisson" onclick="this.classList.toggle('active')">🍹 Boisson maison</span>
+        <span class="chip" data-t="conserves" onclick="this.classList.toggle('active')">🥫 Conserves</span>
+        <span class="chip" data-t="confiture" onclick="this.classList.toggle('active')">🍯 Confiture</span>
+        <span class="chip" data-t="pate" onclick="this.classList.toggle('active')">🥩 Pâté</span>
       </div>
     </div>
     <div class="form-group"><label>URL photo (optionnel)</label><input id="r-photo" placeholder="https://images.unsplash.com/..."></div>
@@ -859,7 +868,7 @@ function renderRecipes(){
     const photoBand = r.photo
       ? `<img src="${r.photo}" alt="${r.name}" class="recipe-emoji-band" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">\n      <div class="recipe-emoji-band-fallback" style="display:none">${r.emoji}${devBadge}</div>`
       : `<div class="recipe-emoji-band-fallback">${r.emoji}${devBadge}</div>`;
-    const tagColor=t=>t==='plaisirs'?'pink':t==='patisserie'?'purple':t==='boisson'?'blue':'green';
+    const tagColor=t=>t==='plaisirs'?'pink':t==='patisserie'?'purple':t==='boisson'?'blue':t==='conserves'?'amber':t==='confiture'?'pink':t==='pate'?'coral':'green';
     const tagsHtml=r.tags.map(t=>`<span class="tag ${tagColor(t)}">${t}</span>`).join('');
     const el=document.createElement('div');
     el.className='recipe-card';
@@ -1809,19 +1818,27 @@ function showToast(msg){
 // ── PDF FIX ────────────────────────────────
 const _origExportPDF = exportPDF;
 window.exportPDF = function() {
-  if (!window.jspdf) { showToast('⚠️ PDF non disponible — rechargez la page'); return; }
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    showToast('⏳ Chargement PDF…');
+    setTimeout(() => window.exportPDF(), 600);
+    return;
+  }
   buildCourses();
   setTimeout(() => {
     try { _origExportPDF(); }
-    catch(e) { showToast('Erreur PDF. Réessayez.'); }
+    catch(e) { console.error('PDF error:', e); showToast('Erreur PDF : ' + e.message); }
   }, 50);
 };
 
 const _origExportPlanningPDF = exportPlanningPDF;
 window.exportPlanningPDF = function() {
-  if (!window.jspdf) { showToast('⚠️ PDF non disponible — rechargez la page'); return; }
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    showToast('⏳ Chargement PDF…');
+    setTimeout(() => window.exportPlanningPDF(), 600);
+    return;
+  }
   try { _origExportPlanningPDF(); }
-  catch(e) { showToast('Erreur PDF. Réessayez.'); }
+  catch(e) { console.error('PDF error:', e); showToast('Erreur PDF : ' + e.message); }
 };
 
 
