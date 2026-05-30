@@ -1365,197 +1365,46 @@ function renderBudget(){
 
 // ── PDF PLANNING ─────────────────────────
 function exportPlanningPDF(){
-  const{jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-  const W=297,H=210,M=14;
-  // Palette terracotta
-  const BRICK=[122,48,24],TERRA=[194,89,52],SAND=[249,240,234],
-        IVORY=[250,246,242],DARK=[44,24,16],MUTED=[160,120,100],
-        WHITE=[255,255,255],LIGHT=[255,250,246];
-
-  const dd=getWeekDates(weekOffset);
-  const fmtShort=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
-  const fmtMonth=d=>d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-
-  // ════════════════════════════════
-  // HEADER — grande zone titre
-  // ════════════════════════════════
-  // Background dégradé simulé par deux rects
-  doc.setFillColor(...BRICK); doc.rect(0,0,W,36,'F');
-  doc.setFillColor(...TERRA); doc.rect(0,28,W,10,'F');
-  // Liseré fin bas du header
-  doc.setFillColor(230,130,90); doc.rect(0,36,W,1.5,'F');
-
-  // Logo "Mon" (regular weight simulation) + "Menu" italic
-  doc.setTextColor(...WHITE);
-  doc.setFontSize(26); doc.setFont('helvetica','normal');
-  doc.text('Mon',M,22);
-  doc.setFontSize(26); doc.setFont('helvetica','bolditalic');
-  const monW=doc.getTextWidth('Mon');
-  doc.text('Menu',M+monW,22);
-
-  // Diamond accent between logo and subtitle
-  doc.setFillColor(230,140,100);
-  const dX=M+monW+doc.getTextWidth('Menu')+5;
-  doc.circle(dX,17,1.2,'F');
-
-  // Subtitle — semaine
-  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(255,215,195);
-  doc.text('Planning de la semaine',dX+6,18);
-  doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
-  doc.text(fmtShort(dd[0])+' - '+fmtShort(dd[6]),dX+6,26);
-
-  // Date génération
-  doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(220,190,175);
-  doc.text('Imprimé le '+new Date().toLocaleDateString('fr-FR'),W-M,13,{align:'right'});
-
-  // Repas planifiés count badge
-  const planned=DAYS.reduce((n,d)=>(planning[d].midi?n+1:n)+(planning[d].soir?n+1:n),0);
-  doc.setFillColor(230,130,80); doc.roundedRect(W-M-38,18,38,12,2,2,'F');
-  doc.setTextColor(...WHITE); doc.setFontSize(7); doc.setFont('helvetica','bold');
-  doc.text(planned+'/14 repas planifiés',W-M-19,23.5,{align:'center'});
-  doc.setFontSize(6); doc.setFont('helvetica','normal');
-  doc.text('cette semaine',W-M-19,28.5,{align:'center'});
-
-  // ════════════════════════════════
-  // LÉGENDE midi / soir
-  // ════════════════════════════════
-  const legendY=40;
-  doc.setFillColor(...TERRA); doc.roundedRect(M,legendY,12,4,1,1,'F');
-  doc.setTextColor(...WHITE); doc.setFontSize(6); doc.setFont('helvetica','bold');
-  doc.text('MIDI',M+6,legendY+2.8,{align:'center'});
-  doc.setFillColor(...BRICK); doc.roundedRect(M+15,legendY,12,4,1,1,'F');
-  doc.text('SOIR',M+21,legendY+2.8,{align:'center'});
-  doc.setTextColor(...MUTED); doc.setFontSize(6); doc.setFont('helvetica','normal');
-  doc.text('Appuyer sur une case vide pour ajouter un repas dans l\'application',M+30,legendY+2.8);
-
-  // ════════════════════════════════
-  // GRILLE 7 JOURS
-  // ════════════════════════════════
-  const gridTop=47;
-  const gridH=H-gridTop-M-8; // leave footer
-  const colW=(W-M*2)/7;
-  const slotH=(gridH-10)/2; // 10 = day header height
-
-  DAYS.forEach((day,i)=>{
-    const date=dd[i];
-    const cx=M+i*colW;
-    const isToday=date.toDateString()===new Date().toDateString();
-
-    // ── Day column background ──
-    doc.setFillColor(...(isToday?[255,240,232]:IVORY));
-    doc.roundedRect(cx,gridTop,colW-1.5,gridH,2,2,'F');
-    if(isToday){
-      doc.setDrawColor(...TERRA); doc.setLineWidth(.6);
-      doc.roundedRect(cx,gridTop,colW-1.5,gridH,2,2,'S');
-      doc.setLineWidth(.2);
-    }
-
-    // ── Day header ──
-    doc.setFillColor(...(isToday?TERRA:BRICK));
-    doc.roundedRect(cx,gridTop,colW-1.5,10,2,2,'F');
-    doc.rect(cx,gridTop+4,colW-1.5,6,'F'); // square bottom corners
-
-    doc.setTextColor(...WHITE);
-    doc.setFontSize(8.5); doc.setFont('helvetica','bold');
-    doc.text(day,cx+(colW-1.5)/2,gridTop+5,{align:'center'});
-    doc.setFontSize(6.5); doc.setFont('helvetica','normal');
-    doc.setTextColor(...(isToday?[255,220,200]:MUTED));
-    doc.text(fmtShort(date),cx+(colW-1.5)/2,gridTop+9,{align:'center'});
-
-    // ── Slot renderer ──
-    const drawSlot=(slotKey,isMidi,ySlot)=>{
-      const meal=planning[day]?.[slotKey]||'';
-      const r=RECIPES.find(x=>x.name===meal);
-      const slotX=cx+2; const slotW=colW-5.5;
-
-      if(r){
-        // ---- FILLED SLOT ----
-        // Card background
-        doc.setFillColor(...LIGHT);
-        doc.roundedRect(slotX,ySlot,slotW,slotH-1,1.5,1.5,'F');
-
-        // Colour band top
-        doc.setFillColor(...(isMidi?TERRA:BRICK));
-        doc.roundedRect(slotX,ySlot,slotW,4.5,1.5,1.5,'F');
-        doc.rect(slotX,ySlot+1.5,slotW,3,'F');
-
-        // Slot label
-        doc.setTextColor(...WHITE);
-        doc.setFontSize(5); doc.setFont('helvetica','bold');
-        doc.text((isMidi?'MIDI':'SOIR'),slotX+2,ySlot+3.3);
-
-        // Emoji in coloured square
-        doc.setFillColor(...SAND);
-        doc.roundedRect(slotX+1,ySlot+6,11,11,1,1,'F');
-        doc.setFontSize(10);
-        try { doc.text(r.emoji||'',slotX+1.8,ySlot+14.2); } catch(e) { doc.text('🍽',slotX+1.8,ySlot+14.2); }
-
-        // Recipe name — wrapped
-        doc.setTextColor(...DARK);
-        doc.setFontSize(7); doc.setFont('helvetica','bold');
-        const lines=doc.splitTextToSize(r.name,slotW-16);
-        doc.text(lines,slotX+14,ySlot+10);
-
-        // Meta badges
-        const metaY=ySlot+slotH-7;
-        doc.setFillColor(...SAND);
-        doc.roundedRect(slotX+1,metaY,16,4,1,1,'F');
-        doc.setTextColor(...MUTED); doc.setFontSize(5.5); doc.setFont('helvetica','normal');
-        doc.text((r.time||'?')+' min',slotX+2.5,metaY+2.8);
-
-        doc.setFillColor(...SAND);
-        doc.roundedRect(slotX+19,metaY,18,4,1,1,'F');
-        doc.text((r.cal||'?')+' kcal',slotX+20.5,metaY+2.8);
-
-        // Tag pill
-        if(r.tags&&r.tags[0]){
-          const tag=r.tags[0];
-          doc.setFillColor(...(isMidi?TERRA:BRICK));
-          doc.roundedRect(slotX+1,ySlot+slotH-3.5,slotW-2,3,1,1,'F');
-          doc.setTextColor(...WHITE); doc.setFontSize(5); doc.setFont('helvetica','normal');
-          doc.text(tag,slotX+slotW/2-1,ySlot+slotH-1.5,{align:'center'});
-        }
-
-        // Separator line bottom
-        doc.setDrawColor(...SAND); doc.setLineWidth(.3);
-        doc.line(slotX,ySlot+slotH,slotX+slotW,ySlot+slotH);
-
-      } else {
-        // ---- EMPTY SLOT ----
-        doc.setFillColor(252,248,245);
-        doc.roundedRect(slotX,ySlot,slotW,slotH-1,1.5,1.5,'F');
-        doc.setDrawColor(220,195,178); doc.setLineWidth(.25);
-        doc.setLineDashPattern([1,1.5],0);
-        doc.roundedRect(slotX,ySlot,slotW,slotH-1,1.5,1.5,'S');
-        doc.setLineDashPattern([],0);
-        doc.setTextColor(210,175,158);
-        doc.setFontSize(6); doc.setFont('helvetica','normal');
-        doc.text(isMidi?'Midi':'Soir',slotX+slotW/2,ySlot+slotH/2-2,{align:'center'});
-        doc.setFontSize(11);
-        doc.text('+',slotX+slotW/2,ySlot+slotH/2+3.5,{align:'center'});
-      }
-    };
-
-    const slot1Y=gridTop+11;
-    const slot2Y=gridTop+11+slotH+1;
-    drawSlot('midi',true,slot1Y);
-    drawSlot('soir',false,slot2Y);
+  const dd = getWeekDates(weekOffset);
+  const fmt = d => d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+  
+  let rows = '';
+  DAYS.forEach((day,i) => {
+    const date = dd[i];
+    const isToday = date.toDateString() === new Date().toDateString();
+    const midi = planning[day]?.midi || '';
+    const soir = planning[day]?.soir || '';
+    const rm = RECIPES.find(r=>r.name===midi);
+    const rs = RECIPES.find(r=>r.name===soir);
+    rows += `<tr style="${isToday?'background:#fff3ee;font-weight:bold':''}">
+      <td style="padding:8px 12px;border:1px solid #e8d5c4;font-weight:700;color:#C25934;width:100px">${day}<br><small style="color:#8C6A58;font-weight:normal">${date.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</small></td>
+      <td style="padding:8px 12px;border:1px solid #e8d5c4">${rm ? rm.emoji+' '+rm.name+'<br><small style="color:#8C6A58">'+rm.time+' min · '+rm.cal+' kcal</small>' : '<span style="color:#ccc">—</span>'}</td>
+      <td style="padding:8px 12px;border:1px solid #e8d5c4">${rs ? rs.emoji+' '+rs.name+'<br><small style="color:#8C6A58">'+rs.time+' min · '+rs.cal+' kcal</small>' : '<span style="color:#ccc">—</span>'}</td>
+    </tr>`;
   });
 
-  // ════════════════════════════════
-  // FOOTER
-  // ════════════════════════════════
-  const fY=H-7;
-  doc.setFillColor(...SAND); doc.rect(0,fY-3,W,10,'F');
-  doc.setFillColor(...TERRA); doc.rect(0,fY-3,3,10,'F');
-  doc.setTextColor(...MUTED); doc.setFontSize(6.5); doc.setFont('helvetica','normal');
-  doc.text('MonMenu - votre planning de cuisine personnalisé',M+2,fY+1.5);
-  doc.setFont('helvetica','bold'); doc.setTextColor(...TERRA);
-  doc.text(fmtMonth(dd[0]),W-M,fY+1.5,{align:'right'});
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>MonMenu - Planning</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; color: #2C1810; }
+    h1 { color: #C25934; font-size: 24px; margin-bottom: 4px; }
+    p { color: #8C6A58; font-size: 13px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #7A3018; color: white; padding: 10px 12px; text-align: left; }
+    @media print { body { padding: 10px; } }
+  </style></head><body>
+  <h1>◆ MonMenu — Planning de la semaine</h1>
+  <p>Du ${dd[0].toLocaleDateString('fr-FR',{day:'numeric',month:'long'})} au ${dd[6].toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</p>
+  <table>
+    <thead><tr><th>Jour</th><th>☀ Midi</th><th>🌙 Soir</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>
+  </body></html>`;
 
-  doc.save('planning-'+fmtShort(dd[0]).replace(' ','-')+'.pdf');
-  showToast('📄 Planning PDF téléchargé !');
+  const w = window.open('','_blank');
+  if(w){ w.document.write(html); w.document.close(); }
+  else { showToast('Autorisez les popups pour imprimer'); }
 }
 
 // ── PDF COURSES ───────────────────────────
