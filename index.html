@@ -293,10 +293,10 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
     <div class="topbar-sub" id="topbar-sub">Planning semaine</div>
   </div>
   <div style="display:flex;align-items:center;gap:6px">
-    <button onclick="openSessionModalFromIndicator()" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-family:'Outfit',sans-serif;transition:.15s" id="sync-indicator" title="Partager / Collaborer">
+    <div style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);font-family:'Outfit',sans-serif" id="sync-indicator" title="Statut de synchronisation">
       <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;transition:.3s"></span>
-      <span id="sync-label" style="color:var(--muted)">Local</span>
-    </button>
+      <span id="sync-label" style="color:var(--muted)">Connexion…</span>
+    </div>
     <div class="week-nav" id="week-nav" style="display:none">
       <button onclick="changeWeek(-1)">&#8249;</button>
       <span class="week-label" id="week-label"></span>
@@ -1697,15 +1697,14 @@ renderPlanning();renderRecipes();renderFrigo();buildCourses();renderBudget();
 // setSyncStatus handled by Firebase onAuthStateChanged
 </script>
 
-<!-- Firebase Auth + Realtime Sync Module -->
+<!-- Firebase Auth + Realtime Shared Sync Module -->
 <script type="module">
 
 // ══════════════════════════════════════════════════════════════════
-// 🔥 FIREBASE — AUTH + FIRESTORE TEMPS RÉEL
-// ══════════════════════════════════════════════════════════════════
-// CONFIGURATION : remplacez par vos propres clés Firebase
-// Créez un projet sur https://console.firebase.google.com
-// puis copiez vos clés de configuration ici
+// 🔥 FIREBASE — BASE DE DONNÉES FAMILIALE PARTAGÉE
+// Tous les utilisateurs connectés partagent le même document Firestore.
+// Aucun code de session, aucune action manuelle : synchronisation
+// automatique et immédiate entre tous les appareils.
 // ══════════════════════════════════════════════════════════════════
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -1722,14 +1721,12 @@ import {
 import {
   getFirestore,
   doc,
-  getDoc,
   setDoc,
   onSnapshot,
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // ── FIREBASE CONFIG ─────────────────────────────────────────────
-// 🔴 REMPLACEZ CES VALEURS PAR VOTRE CONFIGURATION FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCVwV4LBCHsKj0yFM_E6FqaQZ7YUR1ZKM8",
   authDomain: "monmenu-c6aff.firebaseapp.com",
@@ -1740,134 +1737,113 @@ const firebaseConfig = {
 };
 
 // ── INIT ────────────────────────────────────────────────────────
-const firebaseApp = initializeApp(firebaseConfig);
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
+const firebaseApp    = initializeApp(firebaseConfig);
+const auth           = getAuth(firebaseApp);
+const db             = getFirestore(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 
-// ── STATE ────────────────────────────────────────────────────────
-let currentUser = null;
-let currentSessionCode = null; // null = données perso, string = session partagée
+// ── DOCUMENT PARTAGÉ UNIQUE ──────────────────────────────────────
+// Toute la famille lit et écrit dans ce seul document.
+// Règle Firestore recommandée dans la console Firebase :
+//   match /shared/family/data/main { allow read, write: if request.auth != null; }
+const SHARED_DOC_REF = () => doc(db, 'shared', 'family', 'data', 'main');
+
+// ── STATE INTERNE ────────────────────────────────────────────────
+let currentUser           = null;
 let _firestoreUnsubscribe = null;
-let _pushDebounceTimer = null;
-let _lastPushedStr = null;   // empreinte du dernier push local (évite les boucles)
-let _ignoreNextSnapshot = false; // flag pour ignorer le snapshot qui suit notre propre écriture
+let _pushDebounceTimer    = null;
+let _lastPushedStr        = null;  // empreinte du dernier push local
+let _ignoreNextSnapshot   = false; // vrai juste après notre propre push
 
-// ── UTILS ────────────────────────────────────────────────────────
-function getPersonalDocRef(uid) {
-  return doc(db, 'users', uid, 'data', 'main');
-}
-function getSessionDocRef(code) {
-  return doc(db, 'sessions', code.toUpperCase());
-}
-function getActiveDocRef() {
-  if (currentSessionCode) return getSessionDocRef(currentSessionCode);
-  if (currentUser) return getPersonalDocRef(currentUser.uid);
-  return null;
-}
-
-// Sérialise l'état applicatif pour comparaison
+// ── SÉRIALISATION ────────────────────────────────────────────────
 function getStateStr() {
-  return JSON.stringify({
-    recipes: RECIPES,
-    planning,
-    frigo: FRIGO,
-    manualItems,
-    coursesChecked
-  });
+  return JSON.stringify({ recipes: RECIPES, planning, frigo: FRIGO, manualItems, coursesChecked });
 }
 
-// ── SYNC STATUS UI ───────────────────────────────────────────────
+// ── STATUT DE SYNCHRONISATION ────────────────────────────────────
 function setSyncStatus(state) {
-  const dot = document.getElementById('sync-dot');
-  const label = document.getElementById('sync-label');
+  const dot       = document.getElementById('sync-dot');
+  const label     = document.getElementById('sync-label');
   const indicator = document.getElementById('sync-indicator');
   if (!dot || !label) return;
   const name = currentUser
     ? (currentUser.displayName || currentUser.email?.split('@')[0] || 'Connecté')
-    : 'Non connecté';
+    : '';
   if (state === 'online') {
     dot.style.background = '#22c55e';
-    label.textContent = currentSessionCode ? '🔗 ' + currentSessionCode : (name);
-    if (indicator) {
-      indicator.style.borderColor = '#bbf7d0';
-      indicator.title = currentSessionCode
-        ? 'Session partagée : ' + currentSessionCode
-        : 'Données synchronisées — ' + name;
-    }
+    label.textContent    = name;
+    label.style.color    = 'var(--g800)';
+    if (indicator) { indicator.style.borderColor = '#bbf7d0'; indicator.title = '✅ Synchronisé — ' + name; }
   } else if (state === 'saving') {
     dot.style.background = '#f59e0b';
-    label.textContent = 'Sync…';
+    label.textContent    = 'Sync…';
+    label.style.color    = 'var(--muted)';
     if (indicator) indicator.style.borderColor = '#fde68a';
   } else if (state === 'offline') {
     dot.style.background = '#ef4444';
-    label.textContent = 'Hors ligne';
-    if (indicator) indicator.style.borderColor = '#fca5a5';
-  } else { // 'local' ou déconnecté
+    label.textContent    = 'Hors ligne';
+    label.style.color    = 'var(--muted)';
+    if (indicator) { indicator.style.borderColor = '#fca5a5'; indicator.title = '❌ Pas de connexion'; }
+  } else {
     dot.style.background = '#94a3b8';
-    label.textContent = 'Se connecter';
-    if (indicator) { indicator.style.borderColor = 'var(--border)'; indicator.title = 'Cliquez pour vous connecter'; }
+    label.textContent    = 'Se connecter';
+    label.style.color    = 'var(--muted)';
+    if (indicator) { indicator.style.borderColor = 'var(--border)'; indicator.title = 'Non connecté'; }
   }
 }
 
-// ── PUSH DATA (avec dé-boucle et debounce) ───────────────────────
+// ── PUSH FIRESTORE (avec debounce 400 ms) ────────────────────────
 function schedulePush() {
   clearTimeout(_pushDebounceTimer);
   _pushDebounceTimer = setTimeout(pushToFirestore, 400);
 }
 
 async function pushToFirestore() {
-  const ref = getActiveDocRef();
-  if (!ref) return;
+  if (!currentUser) return;
   const stateStr = getStateStr();
   if (stateStr === _lastPushedStr) return; // rien de nouveau
+
   setSyncStatus('saving');
   try {
-    const data = {
+    _lastPushedStr      = stateStr;
+    _ignoreNextSnapshot = true;
+    await setDoc(SHARED_DOC_REF(), {
       recipes: RECIPES,
       planning,
-      frigo: FRIGO,
+      frigo:   FRIGO,
       manualItems,
       coursesChecked,
       updatedAt: serverTimestamp(),
-      updatedBy: currentUser ? (currentUser.displayName || currentUser.email) : 'inconnu'
-    };
-    _lastPushedStr = stateStr;
-    _ignoreNextSnapshot = true; // le prochain snapshot sera notre propre écriture
-    await setDoc(ref, data, { merge: true });
+      updatedBy: currentUser.displayName || currentUser.email || 'inconnu'
+    }, { merge: true });
     setSyncStatus('online');
   } catch (e) {
     console.error('Erreur push Firestore:', e);
-    _lastPushedStr = null; // permettre de réessayer
+    _lastPushedStr = null;
     setSyncStatus('offline');
   }
 }
 
-// ── REAL-TIME LISTENER ───────────────────────────────────────────
+// ── LISTENER TEMPS RÉEL ──────────────────────────────────────────
 function startRealtimeListener() {
-  const ref = getActiveDocRef();
-  if (!ref) return;
   if (_firestoreUnsubscribe) { _firestoreUnsubscribe(); _firestoreUnsubscribe = null; }
-  _lastPushedStr = null;
+  _lastPushedStr      = null;
   _ignoreNextSnapshot = false;
 
-  _firestoreUnsubscribe = onSnapshot(ref, (snap) => {
+  _firestoreUnsubscribe = onSnapshot(SHARED_DOC_REF(), (snap) => {
     if (!snap.exists()) {
+      // Premier utilisateur de la famille : initialiser la base
       pushToFirestore();
       return;
     }
 
-    const remote = snap.data();
+    const remote    = snap.data();
     const remoteStr = JSON.stringify({
-      recipes: remote.recipes,
-      planning: remote.planning,
-      frigo: remote.frigo,
-      manualItems: remote.manualItems,
-      coursesChecked: remote.coursesChecked
+      recipes: remote.recipes, planning: remote.planning, frigo: remote.frigo,
+      manualItems: remote.manualItems, coursesChecked: remote.coursesChecked
     });
 
-    // Anti-boucle : ignorer uniquement si c'est exactement notre dernier push
-    // et que le flag _ignoreNextSnapshot est levé (= on vient d'écrire)
+    // Ignorer si c'est notre propre push qui revient
     if (_ignoreNextSnapshot && remoteStr === _lastPushedStr) {
       _ignoreNextSnapshot = false;
       setSyncStatus('online');
@@ -1875,7 +1851,7 @@ function startRealtimeListener() {
     }
     _ignoreNextSnapshot = false;
 
-    // Si l'état distant est identique à l'état local courant, rien à faire
+    // Rien à faire si l'état local est déjà identique
     if (remoteStr === getStateStr()) { setSyncStatus('online'); return; }
 
     // Appliquer champ par champ
@@ -1902,11 +1878,9 @@ function startRealtimeListener() {
     }
 
     if (changed) {
-      // NE PAS écrire _lastPushedStr ici : seul pushToFirestore() le fait.
-      // Si on l'écrivait ici, le snapshot suivant de l'autre user serait ignoré.
       renderPlanning(); renderRecipes(); renderFrigo(); buildCourses(); renderBudget();
       const updatedBy = remote.updatedBy || '';
-      const myName = currentUser?.displayName || currentUser?.email || '';
+      const myName    = currentUser?.displayName || currentUser?.email || '';
       if (updatedBy && updatedBy !== myName) {
         showToast('🔄 ' + updatedBy + ' a mis à jour les données');
       }
@@ -1925,16 +1899,7 @@ onAuthStateChanged(auth, async (user) => {
     hideAuthModal();
     setSyncStatus('online');
     startRealtimeListener();
-    // Si c'est la première connexion, pousser les données initiales
-    try {
-      const snap = await getDoc(getPersonalDocRef(user.uid));
-      if (!snap.exists()) {
-        await pushToFirestore();
-      }
-    } catch (e) { /* Géré par le listener */ }
   } else {
-    currentUser = null;
-    currentSessionCode = null;
     if (_firestoreUnsubscribe) { _firestoreUnsubscribe(); _firestoreUnsubscribe = null; }
     setSyncStatus('local');
     showAuthModal();
@@ -1951,11 +1916,11 @@ function hideAuthModal() {
   if (m) m.classList.remove('open');
 }
 
-// ── AUTH ACTIONS ─────────────────────────────────────────────────
+// ── ACTIONS AUTH ─────────────────────────────────────────────────
 async function authRegister() {
   const email = document.getElementById('auth-email')?.value?.trim();
-  const pass = document.getElementById('auth-pass')?.value;
-  const name = document.getElementById('auth-name')?.value?.trim();
+  const pass  = document.getElementById('auth-pass')?.value;
+  const name  = document.getElementById('auth-name')?.value?.trim();
   if (!email || !pass) { showToast('Email et mot de passe requis'); return; }
   if (pass.length < 6) { showToast('Mot de passe : 6 caractères minimum'); return; }
   setAuthLoading(true);
@@ -1966,16 +1931,16 @@ async function authRegister() {
   } catch (e) {
     const msg = {
       'auth/email-already-in-use': 'Cet email est déjà utilisé',
-      'auth/invalid-email': 'Email invalide',
-      'auth/weak-password': 'Mot de passe trop faible'
-    }[e.code] || 'Erreur : ' + e.message;
+      'auth/invalid-email':        'Email invalide',
+      'auth/weak-password':        'Mot de passe trop faible'
+    }[e.code] || ('Erreur : ' + e.message);
     showToast('❌ ' + msg);
   } finally { setAuthLoading(false); }
 }
 
 async function authLogin() {
   const email = document.getElementById('auth-email')?.value?.trim();
-  const pass = document.getElementById('auth-pass')?.value;
+  const pass  = document.getElementById('auth-pass')?.value;
   if (!email || !pass) { showToast('Email et mot de passe requis'); return; }
   setAuthLoading(true);
   try {
@@ -1983,10 +1948,10 @@ async function authLogin() {
     showToast('✅ Connecté !');
   } catch (e) {
     const msg = {
-      'auth/user-not-found': 'Aucun compte avec cet email',
-      'auth/wrong-password': 'Mot de passe incorrect',
+      'auth/user-not-found':     'Aucun compte avec cet email',
+      'auth/wrong-password':     'Mot de passe incorrect',
       'auth/invalid-credential': 'Email ou mot de passe incorrect',
-      'auth/too-many-requests': 'Trop de tentatives — réessayez plus tard'
+      'auth/too-many-requests':  'Trop de tentatives — réessayez plus tard'
     }[e.code] || 'Erreur de connexion';
     showToast('❌ ' + msg);
   } finally { setAuthLoading(false); }
@@ -2003,148 +1968,44 @@ async function authGoogle() {
 }
 
 async function authLogout() {
-  currentSessionCode = null;
   try {
     await signOut(auth);
     showToast('À bientôt !');
-    closeModal('modal-session');
   } catch (e) { showToast('Erreur déconnexion'); }
 }
 
 function setAuthLoading(on) {
-  const btn = document.getElementById('auth-submit-btn');
+  const btn  = document.getElementById('auth-submit-btn');
   const btnG = document.getElementById('auth-google-btn');
-  if (btn) { btn.disabled = on; btn.innerHTML = on ? '<span class="spinner"></span>Chargement…' : btn.dataset.label; }
+  if (btn)  { btn.disabled = on; btn.innerHTML = on ? '<span class="spinner"></span>Chargement…' : btn.dataset.label; }
   if (btnG) btnG.disabled = on;
 }
 
 function switchAuthMode(mode) {
-  const isLogin = mode === 'login';
-  const nameRow = document.getElementById('auth-name-row');
-  const title = document.getElementById('auth-modal-title');
-  const btn = document.getElementById('auth-submit-btn');
+  const isLogin  = mode === 'login';
+  const nameRow  = document.getElementById('auth-name-row');
+  const title    = document.getElementById('auth-modal-title');
+  const btn      = document.getElementById('auth-submit-btn');
   const switchEl = document.getElementById('auth-switch-text');
-  if (nameRow) nameRow.style.display = isLogin ? 'none' : 'block';
-  if (title) title.textContent = isLogin ? '🔑 Se connecter' : '📝 Créer un compte';
+  if (nameRow)  nameRow.style.display = isLogin ? 'none' : 'block';
+  if (title)    title.textContent     = isLogin ? '🔑 Se connecter' : '📝 Créer un compte';
   if (btn) {
     btn.dataset.label = isLogin ? 'Se connecter' : 'Créer mon compte';
-    btn.innerHTML = isLogin ? 'Se connecter' : 'Créer mon compte';
-    btn.onclick = isLogin ? authLogin : authRegister;
+    btn.innerHTML     = isLogin ? 'Se connecter' : 'Créer mon compte';
+    btn.onclick       = isLogin ? authLogin : authRegister;
   }
   if (switchEl) switchEl.innerHTML = isLogin
-    ? 'Pas encore de compte ? <a href="#" onclick="switchAuthMode(\'register\');return false" style="color:var(--g600);font-weight:600">S\'inscrire</a>'
-    : 'Déjà un compte ? <a href="#" onclick="switchAuthMode(\'login\');return false" style="color:var(--g600);font-weight:600">Se connecter</a>';
+    ? 'Pas encore de compte ? <a href="#" onclick="switchAuthMode('register');return false" style="color:var(--g600);font-weight:600">S'inscrire</a>'
+    : 'Déjà un compte ? <a href="#" onclick="switchAuthMode('login');return false" style="color:var(--g600);font-weight:600">Se connecter</a>';
 }
 
-// ── SESSION PARTAGÉE ─────────────────────────────────────────────
-function generateCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans 0/O/1/I ambigus
-  let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
-}
-
-async function createSession() {
-  if (!currentUser) { showToast('Connectez-vous d\'abord'); return; }
-  const code = generateCode();
-  try {
-    const ref = getSessionDocRef(code);
-    const data = {
-      recipes: RECIPES,
-      planning,
-      frigo: FRIGO,
-      manualItems,
-      coursesChecked,
-      createdBy: currentUser.uid,
-      createdByName: currentUser.displayName || currentUser.email,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      updatedBy: currentUser.displayName || currentUser.email
-    };
-    await setDoc(ref, data);
-    currentSessionCode = code;
-    _lastPushedStr = getStateStr();
-    startRealtimeListener();
-    // Afficher le code créé
-    document.getElementById('session-created-code').textContent = code;
-    document.getElementById('session-step-create').style.display = 'block';
-    document.getElementById('session-step-home').style.display = 'none';
-    document.getElementById('session-step-active').style.display = 'none';
-    showToast('✅ Session créée : ' + code);
-    setSyncStatus('online');
-  } catch (e) {
-    console.error(e);
-    showToast('Erreur création session');
-  }
-}
-
-async function joinSession() {
-  if (!currentUser) { showToast('Connectez-vous d\'abord'); return; }
-  const inp = document.getElementById('session-join-input');
-  const code = (inp?.value || '').trim().toUpperCase();
-  if (code.length < 4) { showToast('Code invalide'); return; }
-  try {
-    const snap = await getDoc(getSessionDocRef(code));
-    if (!snap.exists()) { showToast('❌ Session introuvable — vérifiez le code'); return; }
-    currentSessionCode = code;
-    if (inp) inp.value = '';
-    startRealtimeListener();
-    closeModal('modal-session');
-    setSyncStatus('online');
-    showToast('✅ Rejoint la session ' + code);
-  } catch (e) {
-    console.error(e);
-    showToast('❌ Impossible de rejoindre — réessayez');
-  }
-}
-
-function leaveSession() {
-  currentSessionCode = null;
-  _lastPushedStr = null;
-  startRealtimeListener(); // Relancer avec les données personnelles
-  closeModal('modal-session');
-  showToast('Session quittée — retour à vos données personnelles');
-  setSyncStatus('online');
-}
-
-function copySessionCode() {
-  const el = document.getElementById('session-active-code') || document.getElementById('session-created-code');
-  const code = el?.textContent?.trim() || currentSessionCode;
-  if (code) navigator.clipboard?.writeText(code).then(() => showToast('📋 Code copié !'));
-}
-
-function openSessionModalFromIndicator() {
-  if (!currentUser) { showAuthModal(); return; }
-  const modal = document.getElementById('modal-session');
-  // Réinitialiser les panneaux
-  document.getElementById('session-step-create').style.display = 'none';
-  if (currentSessionCode) {
-    document.getElementById('session-step-active').style.display = 'block';
-    document.getElementById('session-active-code').textContent = currentSessionCode;
-    document.getElementById('session-step-home').style.display = 'none';
-  } else {
-    document.getElementById('session-step-active').style.display = 'none';
-    document.getElementById('session-step-home').style.display = 'block';
-  }
-  // Afficher le badge utilisateur
-  const userInfo = document.getElementById('session-user-info');
-  const userName = document.getElementById('session-user-name');
-  if (userInfo && currentUser) {
-    if (userName) userName.textContent = '👤 ' + (currentUser.displayName || currentUser.email);
-    userInfo.style.display = 'flex';
-  }
-  modal.classList.add('open');
-}
-
-// ── WRAP STATE-MUTATING FUNCTIONS → AUTO-PUSH ───────────────────
-// Planning
+// ── WRAPPERS → AUTO-PUSH SUR CHAQUE MUTATION ────────────────────
 const _origRemoveMeal = removeMeal;
 window.removeMeal = function(day, slot) { _origRemoveMeal(day, slot); schedulePush(); };
 
 const _origClearPlanning = clearPlanning;
 window.clearPlanning = function() { _origClearPlanning(); schedulePush(); };
 
-// Recettes
 const _origDeleteRecipe = deleteRecipe;
 window.deleteRecipe = function(id) { _origDeleteRecipe(id); schedulePush(); };
 
@@ -2154,7 +2015,6 @@ window.saveRecipe = function() { _origSaveRecipe(); schedulePush(); };
 const _origQuickAdd = quickAdd;
 window.quickAdd = function(id) { _origQuickAdd(id); schedulePush(); };
 
-// Frigo
 const _origCycleFrigo = cycleFrigo;
 window.cycleFrigo = function(id) { _origCycleFrigo(id); schedulePush(); };
 
@@ -2164,7 +2024,6 @@ window.delFrigo = function(id) { _origDelFrigo(id); schedulePush(); };
 const _origSaveFrigoItem = saveFrigoItem;
 window.saveFrigoItem = function() { _origSaveFrigoItem(); schedulePush(); };
 
-// Courses
 const _origAddManualIng = addManualIng;
 window.addManualIng = function() { _origAddManualIng(); schedulePush(); };
 
@@ -2180,33 +2039,21 @@ window.checkAllCourses = function() { _origCheckAllCourses(); schedulePush(); };
 const _origAddSeasonToList = addSeasonToList;
 window.addSeasonToList = function() { _origAddSeasonToList(); schedulePush(); };
 
-// Fermeture du modal de sélection de repas → sync
+const _origImportRecipeFromUrl = importRecipeFromUrl;
+window.importRecipeFromUrl = async function() { await _origImportRecipeFromUrl(); schedulePush(); };
+
 const _syncOrigClose = window.closeModal;
 window.closeModal = function(id) {
   _syncOrigClose && _syncOrigClose(id);
   if (id === 'modal-pick') setTimeout(schedulePush, 120);
 };
 
-// Import de recette par URL
-const _origImportRecipeFromUrl = importRecipeFromUrl;
-window.importRecipeFromUrl = async function() {
-  await _origImportRecipeFromUrl();
-  schedulePush();
-};
-
-// ── EXPOSE AU SCOPE GLOBAL (module isolé) ───────────────────────
-window.authLogin = authLogin;
-window.authRegister = authRegister;
-window.authGoogle = authGoogle;
-window.authLogout = authLogout;
+// ── EXPOSE AU SCOPE GLOBAL ───────────────────────────────────────
+window.authLogin      = authLogin;
+window.authRegister   = authRegister;
+window.authGoogle     = authGoogle;
+window.authLogout     = authLogout;
 window.switchAuthMode = switchAuthMode;
-window.createSession = createSession;
-window.joinSession = joinSession;
-window.leaveSession = leaveSession;
-window.copySessionCode = copySessionCode;
-window.openSessionModalFromIndicator = openSessionModalFromIndicator;
-// Exposer pushToFirestore pour debug éventuel
-window._pushToFirestore = pushToFirestore;
 
 </script>
 
@@ -2251,71 +2098,7 @@ window._pushToFirestore = pushToFirestore;
   </div>
 </div>
 
-<!-- ══ MODAL SESSION COLLABORATION (Firebase) ══════════════════ -->
-<div class="modal-bg" id="modal-session" onclick="bgClose(event,'modal-session')">
-  <div class="modal" style="max-width:380px">
-    <div class="modal-header">
-      <div class="modal-title">👥 Collaborer en temps réel</div>
-      <button class="modal-close" onclick="closeModal('modal-session')">&#x2715;</button>
-    </div>
-
-    <!-- User info badge -->
-    <div id="session-user-info" style="display:none;background:var(--g50);border:1px solid var(--g100);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--g800);font-weight:600;margin-bottom:12px;align-items:center;justify-content:space-between">
-      <span id="session-user-name"></span>
-      <button onclick="authLogout()" class="btn sm danger" style="padding:4px 10px;font-size:11px">Déconnexion</button>
-    </div>
-
-    <!-- Session active -->
-    <div id="session-step-active" style="display:none">
-      <div style="background:var(--g50);border:1px solid var(--g100);border-radius:var(--r-lg);padding:16px;text-align:center;margin-bottom:16px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;font-weight:600;letter-spacing:.06em">Session active</div>
-        <div id="session-active-code" style="font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:var(--g600);letter-spacing:6px"></div>
-        <div style="font-size:11px;color:var(--muted);margin-top:6px">Partagez ce code avec vos collaborateurs</div>
-      </div>
-      <button class="btn" style="width:100%;justify-content:center;margin-bottom:8px" onclick="navigator.clipboard?.writeText(document.getElementById('session-active-code').textContent).then(()=>showToast('📋 Code copié !'))">
-        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        Copier le code
-      </button>
-      <button class="btn danger" style="width:100%;justify-content:center" onclick="leaveSession()">
-        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Quitter la session partagée
-      </button>
-    </div>
-
-    <!-- Accueil : créer ou rejoindre -->
-    <div id="session-step-home">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">Créez une session et partagez le code à vos proches — ils voient et modifient le planning en temps réel, depuis n'importe quel appareil.</p>
-      <button class="btn primary" style="width:100%;justify-content:center;margin-bottom:10px;padding:12px" onclick="createSession()">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-        Créer une nouvelle session
-      </button>
-      <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
-        <div style="flex:1;height:1px;background:var(--border)"></div>
-        <span style="font-size:11px;color:var(--muted)">ou</span>
-        <div style="flex:1;height:1px;background:var(--border)"></div>
-      </div>
-      <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:6px">Rejoindre une session existante</label>
-      <div style="display:flex;gap:8px">
-        <input id="session-join-input" placeholder="Code à 6 caractères" style="text-transform:uppercase;letter-spacing:4px;font-size:16px;font-weight:700;text-align:center" maxlength="8" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')joinSession()">
-        <button class="btn primary" onclick="joinSession()" style="flex-shrink:0">Rejoindre</button>
-      </div>
-    </div>
-
-    <!-- Code créé -->
-    <div id="session-step-create" style="display:none">
-      <div style="background:var(--g50);border:1px solid var(--g100);border-radius:var(--r-lg);padding:16px;text-align:center;margin-bottom:16px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;font-weight:600;letter-spacing:.06em">Votre code de session</div>
-        <div id="session-created-code" style="font-family:'Playfair Display',serif;font-size:40px;font-weight:700;color:var(--g600);letter-spacing:8px"></div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">Partagez ce code avec vos proches.<br>Ils peuvent rejoindre depuis leur propre appareil.</div>
-      </div>
-      <button class="btn primary" style="width:100%;justify-content:center;margin-bottom:8px" onclick="copySessionCode()">
-        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        Copier le code
-      </button>
-      <button class="btn" style="width:100%;justify-content:center" onclick="closeModal('modal-session')">C'est parti !</button>
-    </div>
-  </div>
-</div>
+<!-- modal-session supprimé : synchronisation automatique partagée -->
 
 <script>
 // switchAuthMode est dans le <script type="module"> Firebase.
