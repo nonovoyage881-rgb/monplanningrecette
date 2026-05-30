@@ -293,9 +293,9 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
     <div class="topbar-sub" id="topbar-sub">Planning semaine</div>
   </div>
   <div style="display:flex;align-items:center;gap:6px">
-    <div style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);font-family:'Outfit',sans-serif" id="sync-indicator" title="Statut de synchronisation">
+    <div style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);font-family:'Outfit',sans-serif" id="sync-indicator" title="Statut de synchronisation">
       <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;transition:.3s"></span>
-      <span id="sync-label" style="color:var(--muted)">Connexion…</span>
+      <span id="sync-label" style="color:var(--muted)">☁️</span>
     </div>
     <div class="week-nav" id="week-nav" style="display:none">
       <button onclick="changeWeek(-1)">&#8249;</button>
@@ -1697,128 +1697,103 @@ renderPlanning();renderRecipes();renderFrigo();buildCourses();renderBudget();
 // setSyncStatus handled by Firebase onAuthStateChanged
 </script>
 
-<!-- Firebase Auth + Realtime Shared Sync Module -->
+<!-- Firebase Realtime Shared Sync — sans authentification requise -->
 <script type="module">
 
 // ══════════════════════════════════════════════════════════════════
-// 🔥 FIREBASE — BASE DE DONNÉES FAMILIALE PARTAGÉE
-// Tous les utilisateurs connectés partagent le même document Firestore.
-// Aucun code de session, aucune action manuelle : synchronisation
-// automatique et immédiate entre tous les appareils.
+// 🔥 FIREBASE — BASE FAMILIALE PARTAGÉE (ACCÈS DIRECT SANS LOGIN)
+// L'appli se connecte automatiquement à Firebase de façon anonyme.
+// Tous les appareils partagent le même document en temps réel.
+// Aucun email, aucun mot de passe, aucun écran de connexion.
 // ══════════════════════════════════════════════════════════════════
 
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut,
-  onAuthStateChanged,
-  updateProfile
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  onSnapshot,
-  serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { initializeApp }    from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInAnonymously, onAuthStateChanged }
+                             from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp }
+                             from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-// ── FIREBASE CONFIG ─────────────────────────────────────────────
+// ── CONFIG ──────────────────────────────────────────────────────
 const firebaseConfig = {
-  apiKey: "AIzaSyCVwV4LBCHsKj0yFM_E6FqaQZ7YUR1ZKM8",
-  authDomain: "monmenu-c6aff.firebaseapp.com",
-  projectId: "monmenu-c6aff",
-  storageBucket: "monmenu-c6aff.firebasestorage.app",
+  apiKey:            "AIzaSyCVwV4LBCHsKj0yFM_E6FqaQZ7YUR1ZKM8",
+  authDomain:        "monmenu-c6aff.firebaseapp.com",
+  projectId:         "monmenu-c6aff",
+  storageBucket:     "monmenu-c6aff.firebasestorage.app",
   messagingSenderId: "873498860586",
-  appId: "1:873498860586:web:a67f959a241c3435c3f753"
+  appId:             "1:873498860586:web:a67f959a241c3435c3f753"
 };
 
 // ── INIT ────────────────────────────────────────────────────────
-const firebaseApp    = initializeApp(firebaseConfig);
-const auth           = getAuth(firebaseApp);
-const db             = getFirestore(firebaseApp);
-const googleProvider = new GoogleAuthProvider();
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
 
 // ── DOCUMENT PARTAGÉ UNIQUE ──────────────────────────────────────
-// Toute la famille lit et écrit dans ce seul document.
-// Règle Firestore recommandée dans la console Firebase :
-//   match /shared/family/data/main { allow read, write: if request.auth != null; }
-const SHARED_DOC_REF = () => doc(db, 'shared', 'family', 'data', 'main');
+// Tout le monde lit et écrit dans ce seul document.
+const SHARED_REF = () => doc(db, 'shared', 'family', 'data', 'main');
 
-// ── STATE INTERNE ────────────────────────────────────────────────
-let currentUser           = null;
+// ── STATE ────────────────────────────────────────────────────────
 let _firestoreUnsubscribe = null;
 let _pushDebounceTimer    = null;
-let _lastPushedStr        = null;  // empreinte du dernier push local
-let _ignoreNextSnapshot   = false; // vrai juste après notre propre push
+let _lastPushedStr        = null;
+let _ignoreNextSnapshot   = false;
+let _ready                = false; // true dès que le listener est actif
 
 // ── SÉRIALISATION ────────────────────────────────────────────────
 function getStateStr() {
   return JSON.stringify({ recipes: RECIPES, planning, frigo: FRIGO, manualItems, coursesChecked });
 }
 
-// ── STATUT DE SYNCHRONISATION ────────────────────────────────────
+// ── STATUT CLOUD ─────────────────────────────────────────────────
 function setSyncStatus(state) {
-  const dot       = document.getElementById('sync-dot');
-  const label     = document.getElementById('sync-label');
-  const indicator = document.getElementById('sync-indicator');
-  if (!dot || !label) return;
-  const name = currentUser
-    ? (currentUser.displayName || currentUser.email?.split('@')[0] || 'Connecté')
-    : '';
+  const dot  = document.getElementById('sync-dot');
+  const lbl  = document.getElementById('sync-label');
+  const ind  = document.getElementById('sync-indicator');
+  if (!dot || !lbl) return;
   if (state === 'online') {
     dot.style.background = '#22c55e';
-    label.textContent    = name;
-    label.style.color    = 'var(--g800)';
-    if (indicator) { indicator.style.borderColor = '#bbf7d0'; indicator.title = '✅ Synchronisé — ' + name; }
+    lbl.textContent = '☁️ Sync';
+    lbl.style.color = 'var(--g800)';
+    if (ind) { ind.style.borderColor = '#bbf7d0'; ind.title = 'Synchronisé en temps réel'; }
   } else if (state === 'saving') {
     dot.style.background = '#f59e0b';
-    label.textContent    = 'Sync…';
-    label.style.color    = 'var(--muted)';
-    if (indicator) indicator.style.borderColor = '#fde68a';
+    lbl.textContent = 'Sync…';
+    lbl.style.color = 'var(--muted)';
+    if (ind) ind.style.borderColor = '#fde68a';
   } else if (state === 'offline') {
     dot.style.background = '#ef4444';
-    label.textContent    = 'Hors ligne';
-    label.style.color    = 'var(--muted)';
-    if (indicator) { indicator.style.borderColor = '#fca5a5'; indicator.title = '❌ Pas de connexion'; }
+    lbl.textContent = 'Hors ligne';
+    lbl.style.color = 'var(--muted)';
+    if (ind) { ind.style.borderColor = '#fca5a5'; ind.title = 'Pas de connexion'; }
   } else {
     dot.style.background = '#94a3b8';
-    label.textContent    = 'Se connecter';
-    label.style.color    = 'var(--muted)';
-    if (indicator) { indicator.style.borderColor = 'var(--border)'; indicator.title = 'Non connecté'; }
+    lbl.textContent = '☁️';
+    lbl.style.color = 'var(--muted)';
   }
 }
 
-// ── PUSH FIRESTORE (avec debounce 400 ms) ────────────────────────
+// ── PUSH (debounce 400 ms) ────────────────────────────────────────
 function schedulePush() {
   clearTimeout(_pushDebounceTimer);
   _pushDebounceTimer = setTimeout(pushToFirestore, 400);
 }
 
 async function pushToFirestore() {
-  if (!currentUser) return;
+  if (!_ready) return;
   const stateStr = getStateStr();
-  if (stateStr === _lastPushedStr) return; // rien de nouveau
-
+  if (stateStr === _lastPushedStr) return;
   setSyncStatus('saving');
   try {
     _lastPushedStr      = stateStr;
     _ignoreNextSnapshot = true;
-    await setDoc(SHARED_DOC_REF(), {
-      recipes: RECIPES,
-      planning,
-      frigo:   FRIGO,
-      manualItems,
-      coursesChecked,
-      updatedAt: serverTimestamp(),
-      updatedBy: currentUser.displayName || currentUser.email || 'inconnu'
+    await setDoc(SHARED_REF(), {
+      recipes: RECIPES, planning, frigo: FRIGO,
+      manualItems, coursesChecked,
+      updatedAt: serverTimestamp()
     }, { merge: true });
     setSyncStatus('online');
   } catch (e) {
-    console.error('Erreur push Firestore:', e);
+    console.error('Push error:', e);
     _lastPushedStr = null;
     setSyncStatus('offline');
   }
@@ -1827,15 +1802,10 @@ async function pushToFirestore() {
 // ── LISTENER TEMPS RÉEL ──────────────────────────────────────────
 function startRealtimeListener() {
   if (_firestoreUnsubscribe) { _firestoreUnsubscribe(); _firestoreUnsubscribe = null; }
-  _lastPushedStr      = null;
-  _ignoreNextSnapshot = false;
+  _lastPushedStr = null; _ignoreNextSnapshot = false;
 
-  _firestoreUnsubscribe = onSnapshot(SHARED_DOC_REF(), (snap) => {
-    if (!snap.exists()) {
-      // Premier utilisateur de la famille : initialiser la base
-      pushToFirestore();
-      return;
-    }
+  _firestoreUnsubscribe = onSnapshot(SHARED_REF(), (snap) => {
+    if (!snap.exists()) { pushToFirestore(); return; }
 
     const remote    = snap.data();
     const remoteStr = JSON.stringify({
@@ -1843,18 +1813,13 @@ function startRealtimeListener() {
       manualItems: remote.manualItems, coursesChecked: remote.coursesChecked
     });
 
-    // Ignorer si c'est notre propre push qui revient
     if (_ignoreNextSnapshot && remoteStr === _lastPushedStr) {
-      _ignoreNextSnapshot = false;
-      setSyncStatus('online');
-      return;
+      _ignoreNextSnapshot = false; setSyncStatus('online'); return;
     }
     _ignoreNextSnapshot = false;
 
-    // Rien à faire si l'état local est déjà identique
     if (remoteStr === getStateStr()) { setSyncStatus('online'); return; }
 
-    // Appliquer champ par champ
     let changed = false;
     if (Array.isArray(remote.recipes) &&
         JSON.stringify(remote.recipes) !== JSON.stringify(RECIPES)) {
@@ -1879,125 +1844,32 @@ function startRealtimeListener() {
 
     if (changed) {
       renderPlanning(); renderRecipes(); renderFrigo(); buildCourses(); renderBudget();
-      const updatedBy = remote.updatedBy || '';
-      const myName    = currentUser?.displayName || currentUser?.email || '';
-      if (updatedBy && updatedBy !== myName) {
-        showToast('🔄 ' + updatedBy + ' a mis à jour les données');
-      }
+      showToast('🔄 Données mises à jour');
     }
     setSyncStatus('online');
   }, (err) => {
-    console.error('Listener Firestore error:', err);
+    console.error('Listener error:', err);
     setSyncStatus('offline');
   });
 }
 
-// ── AUTH STATE CHANGE ────────────────────────────────────────────
-onAuthStateChanged(auth, async (user) => {
-  currentUser = user;
+// ── CONNEXION ANONYME AUTO ───────────────────────────────────────
+// Firebase exige une auth même anonyme pour les règles "request.auth != null".
+// L'utilisateur ne voit rien, tout est transparent.
+onAuthStateChanged(auth, (user) => {
   if (user) {
-    hideAuthModal();
-    setSyncStatus('online');
+    _ready = true;
     startRealtimeListener();
   } else {
-    if (_firestoreUnsubscribe) { _firestoreUnsubscribe(); _firestoreUnsubscribe = null; }
-    setSyncStatus('local');
-    showAuthModal();
+    signInAnonymously(auth).catch(e => {
+      // Si la connexion anonyme est désactivée dans Firebase,
+      // on tente quand même le listener (règles publiques)
+      console.warn('Connexion anonyme échouée, tentative directe:', e.message);
+      _ready = true;
+      startRealtimeListener();
+    });
   }
 });
-
-// ── AUTH MODAL UI ────────────────────────────────────────────────
-function showAuthModal() {
-  const m = document.getElementById('modal-auth');
-  if (m) m.classList.add('open');
-}
-function hideAuthModal() {
-  const m = document.getElementById('modal-auth');
-  if (m) m.classList.remove('open');
-}
-
-// ── ACTIONS AUTH ─────────────────────────────────────────────────
-async function authRegister() {
-  const email = document.getElementById('auth-email')?.value?.trim();
-  const pass  = document.getElementById('auth-pass')?.value;
-  const name  = document.getElementById('auth-name')?.value?.trim();
-  if (!email || !pass) { showToast('Email et mot de passe requis'); return; }
-  if (pass.length < 6) { showToast('Mot de passe : 6 caractères minimum'); return; }
-  setAuthLoading(true);
-  try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    if (name) await updateProfile(cred.user, { displayName: name });
-    showToast('✅ Compte créé ! Bienvenue ' + (name || email) + ' !');
-  } catch (e) {
-    const msg = {
-      'auth/email-already-in-use': 'Cet email est déjà utilisé',
-      'auth/invalid-email':        'Email invalide',
-      'auth/weak-password':        'Mot de passe trop faible'
-    }[e.code] || ('Erreur : ' + e.message);
-    showToast('❌ ' + msg);
-  } finally { setAuthLoading(false); }
-}
-
-async function authLogin() {
-  const email = document.getElementById('auth-email')?.value?.trim();
-  const pass  = document.getElementById('auth-pass')?.value;
-  if (!email || !pass) { showToast('Email et mot de passe requis'); return; }
-  setAuthLoading(true);
-  try {
-    await signInWithEmailAndPassword(auth, email, pass);
-    showToast('✅ Connecté !');
-  } catch (e) {
-    const msg = {
-      'auth/user-not-found':     'Aucun compte avec cet email',
-      'auth/wrong-password':     'Mot de passe incorrect',
-      'auth/invalid-credential': 'Email ou mot de passe incorrect',
-      'auth/too-many-requests':  'Trop de tentatives — réessayez plus tard'
-    }[e.code] || 'Erreur de connexion';
-    showToast('❌ ' + msg);
-  } finally { setAuthLoading(false); }
-}
-
-async function authGoogle() {
-  setAuthLoading(true);
-  try {
-    await signInWithPopup(auth, googleProvider);
-    showToast('✅ Connecté avec Google !');
-  } catch (e) {
-    if (e.code !== 'auth/popup-closed-by-user') showToast('❌ Connexion Google échouée');
-  } finally { setAuthLoading(false); }
-}
-
-async function authLogout() {
-  try {
-    await signOut(auth);
-    showToast('À bientôt !');
-  } catch (e) { showToast('Erreur déconnexion'); }
-}
-
-function setAuthLoading(on) {
-  const btn  = document.getElementById('auth-submit-btn');
-  const btnG = document.getElementById('auth-google-btn');
-  if (btn)  { btn.disabled = on; btn.innerHTML = on ? '<span class="spinner"></span>Chargement…' : btn.dataset.label; }
-  if (btnG) btnG.disabled = on;
-}
-
-function switchAuthMode(mode) {
-  const isLogin  = mode === 'login';
-  const nameRow  = document.getElementById('auth-name-row');
-  const title    = document.getElementById('auth-modal-title');
-  const btn      = document.getElementById('auth-submit-btn');
-  const switchEl = document.getElementById('auth-switch-text');
-  if (nameRow)  nameRow.style.display = isLogin ? 'none' : 'block';
-  if (title)    title.textContent     = isLogin ? '🔑 Se connecter' : '📝 Créer un compte';
-  if (btn) {
-    btn.dataset.label = isLogin ? 'Se connecter' : 'Créer mon compte';
-    btn.innerHTML     = isLogin ? 'Se connecter' : 'Créer mon compte';
-    btn.onclick       = isLogin ? authLogin : authRegister;
-  }
-  if (switchEl) switchEl.innerHTML = isLogin
-    ? 'Pas encore de compte ? <a href="#" onclick="switchAuthMode('register');return false" style="color:var(--g600);font-weight:600">S'inscrire</a>'
-    : 'Déjà un compte ? <a href="#" onclick="switchAuthMode('login');return false" style="color:var(--g600);font-weight:600">Se connecter</a>';
-}
 
 // ── WRAPPERS → AUTO-PUSH SUR CHAQUE MUTATION ────────────────────
 const _origRemoveMeal = removeMeal;
@@ -2048,68 +1920,10 @@ window.closeModal = function(id) {
   if (id === 'modal-pick') setTimeout(schedulePush, 120);
 };
 
-// ── EXPOSE AU SCOPE GLOBAL ───────────────────────────────────────
-window.authLogin      = authLogin;
-window.authRegister   = authRegister;
-window.authGoogle     = authGoogle;
-window.authLogout     = authLogout;
-window.switchAuthMode = switchAuthMode;
-
 </script>
 
-<!-- ══ MODAL AUTH (Firebase) ══════════════════════════════════ -->
-<div class="modal-bg" id="modal-auth">
-  <div class="modal" style="max-width:380px">
-    <div class="modal-header">
-      <div class="modal-title" id="auth-modal-title">🔑 Se connecter</div>
-    </div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">Connectez-vous pour sauvegarder vos données dans le cloud et les partager avec votre famille.</p>
-
-    <!-- Google -->
-    <button id="auth-google-btn" onclick="authGoogle()" class="btn" style="width:100%;justify-content:center;margin-bottom:12px;gap:8px;padding:11px 14px">
-      <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-      Continuer avec Google
-    </button>
-
-    <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
-      <div style="flex:1;height:1px;background:var(--border)"></div>
-      <span style="font-size:11px;color:var(--muted)">ou par email</span>
-      <div style="flex:1;height:1px;background:var(--border)"></div>
-    </div>
-
-    <div id="auth-name-row" style="display:none" class="form-group">
-      <label>Prénom / Pseudo</label>
-      <input id="auth-name" placeholder="Marie" type="text">
-    </div>
-    <div class="form-group">
-      <label>Email</label>
-      <input id="auth-email" placeholder="vous@exemple.com" type="email" onkeydown="if(event.key==='Enter')document.getElementById('auth-pass').focus()">
-    </div>
-    <div class="form-group">
-      <label>Mot de passe</label>
-      <input id="auth-pass" placeholder="6 caractères minimum" type="password" onkeydown="if(event.key==='Enter')document.getElementById('auth-submit-btn').click()">
-    </div>
-
-    <button id="auth-submit-btn" data-label="Se connecter" onclick="authLogin()" class="btn primary" style="width:100%;justify-content:center;margin-bottom:10px;padding:11px 14px">Se connecter</button>
-
-    <p id="auth-switch-text" style="text-align:center;font-size:12px;color:var(--muted)">
-      Pas encore de compte ? <a href="#" onclick="switchAuthMode('register');return false" style="color:var(--g600);font-weight:600">S'inscrire</a>
-    </p>
-  </div>
-</div>
 
 <!-- modal-session supprimé : synchronisation automatique partagée -->
 
-<script>
-// switchAuthMode est dans le <script type="module"> Firebase.
-// On attend que window.switchAuthMode soit disponible (module chargé) avant de l'appeler.
-(function waitForAuthMode() {
-  if (typeof window.switchAuthMode === 'function') {
-    window.switchAuthMode('login');
-  } else {
-    setTimeout(waitForAuthMode, 50);
-  }
-})();
-</script>
 </body>
 </html>
