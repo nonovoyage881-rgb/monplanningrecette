@@ -1806,237 +1806,6 @@ function showToast(msg){
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
 }
-
-// ── COLLABORATION PAR CODE DE SESSION ─────
-// Chaque session a un code unique à 6 caractères.
-// Les collaborateurs rejoignent via ce code — les données sont synchro en temps réel.
-
-let _sessionCode = null;      // Code actif (null = mode local)
-let _localRev = { last: null };
-let _syncInterval = null;
-let _syncErrorCount = 0;
-const _SYNC_MAX_ERRORS = 3;
-
-function sessionStorageKey() {
-  return 'monmenu:session:' + _sessionCode;
-}
-
-function setSyncStatus(state, extra) {
-  const dot = document.getElementById('sync-dot');
-  const label = document.getElementById('sync-label');
-  const indicator = document.getElementById('sync-indicator');
-  if (!dot || !label) return;
-  if (state === 'online') {
-    dot.style.background = '#22c55e';
-    label.textContent = '🔗 ' + (_sessionCode || '');
-    indicator.style.borderColor = '#bbf7d0';
-    indicator.title = 'Session partagée : ' + _sessionCode;
-  } else if (state === 'saving') {
-    dot.style.background = '#f59e0b';
-    label.textContent = 'Sync…';
-    indicator.style.borderColor = '#fde68a';
-  } else if (state === 'local') {
-    dot.style.background = '#94a3b8';
-    label.textContent = 'Local';
-    indicator.style.borderColor = 'var(--border)';
-    indicator.title = 'Mode local — cliquez pour créer ou rejoindre une session';
-  } else {
-    dot.style.background = 'var(--border)';
-    label.textContent = '…';
-    indicator.style.borderColor = 'var(--border)';
-  }
-}
-
-async function pushToStorage() {
-  if (!_sessionCode || !window.storage) return;
-  try {
-    const data = JSON.stringify({
-      recipes: RECIPES, planning, frigo: FRIGO,
-      manualItems, coursesChecked, rev: Date.now(),
-    });
-    await window.storage.set(sessionStorageKey(), data, true);
-    _localRev.last = data;
-    setSyncStatus('online');
-  } catch (e) {
-    // Silently ignore — don't spam console
-  }
-}
-
-let _syncErrorCount = 0;
-const _SYNC_MAX_ERRORS = 3;
-
-async function pullFromStorage() {
-  if (!_sessionCode || !window.storage) return;
-  try {
-    const result = await window.storage.get(sessionStorageKey(), true);
-    _syncErrorCount = 0;
-    if (!result) { await pushToStorage(); return; }
-    const remoteStr = result.value;
-    if (remoteStr === _localRev.last) { setSyncStatus('online'); return; }
-    _localRev.last = remoteStr;
-    const remote = JSON.parse(remoteStr);
-    let changed = false;
-    if (remote.recipes && JSON.stringify(remote.recipes) !== JSON.stringify(RECIPES)) { RECIPES = remote.recipes; changed = true; }
-    if (remote.planning && JSON.stringify(remote.planning) !== JSON.stringify(planning)) { planning = remote.planning; changed = true; }
-    if (remote.frigo && JSON.stringify(remote.frigo) !== JSON.stringify(FRIGO)) { FRIGO = remote.frigo; changed = true; }
-    if (remote.manualItems && JSON.stringify(remote.manualItems) !== JSON.stringify(manualItems)) { manualItems = remote.manualItems; changed = true; }
-    if (remote.coursesChecked && JSON.stringify(remote.coursesChecked) !== JSON.stringify(coursesChecked)) { coursesChecked = remote.coursesChecked; changed = true; }
-    if (changed) {
-      renderPlanning(); renderRecipes(); renderFrigo(); buildCourses(); renderBudget();
-      showToast('🔄 Mis à jour par un collaborateur');
-    }
-    setSyncStatus('online');
-  } catch (e) {
-    _syncErrorCount++;
-    if (_syncErrorCount >= _SYNC_MAX_ERRORS && _syncInterval) {
-      clearInterval(_syncInterval); _syncInterval = null;
-      setSyncStatus('local');
-    }
-  }
-}
-
-// Wrap all state-mutating functions to auto-push
-const _origRemoveMeal = removeMeal;
-window.removeMeal = function(day, slot) { _origRemoveMeal(day, slot); pushToStorage(); };
-
-const _origClearPlanning = clearPlanning;
-window.clearPlanning = function() { _origClearPlanning(); pushToStorage(); };
-
-const _origDeleteRecipe = deleteRecipe;
-window.deleteRecipe = function(id) { _origDeleteRecipe(id); pushToStorage(); };
-
-const _origSaveRecipe = saveRecipe;
-window.saveRecipe = function() { _origSaveRecipe(); pushToStorage(); };
-
-const _origCycleFrigo = cycleFrigo;
-window.cycleFrigo = function(id) { _origCycleFrigo(id); pushToStorage(); };
-
-const _origDelFrigo = delFrigo;
-window.delFrigo = function(id) { _origDelFrigo(id); pushToStorage(); };
-
-const _origSaveFrigoItem = saveFrigoItem;
-window.saveFrigoItem = function() { _origSaveFrigoItem(); pushToStorage(); };
-
-const _origAddManualIng = addManualIng;
-window.addManualIng = function() { _origAddManualIng(); pushToStorage(); };
-
-const _origRemoveManualItem = removeManualItem;
-window.removeManualItem = function(id) { _origRemoveManualItem(id); pushToStorage(); };
-
-const _origToggleCourse = toggleCourse;
-window.toggleCourse = function(id) { _origToggleCourse(id); pushToStorage(); };
-
-const _origCheckAllCourses = checkAllCourses;
-window.checkAllCourses = function() { _origCheckAllCourses(); pushToStorage(); };
-
-const _origAddSeasonToList = addSeasonToList;
-window.addSeasonToList = function() { _origAddSeasonToList(); pushToStorage(); };
-
-// Patch closeModal so meal assignments push; also integrates voice stop
-// The voice section already wraps closeModal, so we wrap that wrapper
-const _syncOrigClose = window.closeModal;
-window.closeModal = function(id) {
-  if (id === 'modal-pick') { setTimeout(pushToStorage, 100); }
-  _syncOrigClose && _syncOrigClose(id);
-};
-
-// Intercept quickAdd
-const _origQuickAdd = quickAdd;
-window.quickAdd = function(id) { _origQuickAdd(id); pushToStorage(); };
-
-// Import from URL also pushes
-const _origImportRecipeFromUrl = importRecipeFromUrl;
-window.importRecipeFromUrl = async function() {
-  await _origImportRecipeFromUrl();
-  await pushToStorage();
-};
-
-function startSync(code) {
-  _sessionCode = code.toUpperCase();
-  if (_syncInterval) clearInterval(_syncInterval);
-  _syncErrorCount = 0;
-  _localRev.last = null;
-  pullFromStorage();
-  _syncInterval = setInterval(pullFromStorage, 3000);
-  setSyncStatus('online');
-}
-
-function stopSync() {
-  if (_syncInterval) { clearInterval(_syncInterval); _syncInterval = null; }
-  _sessionCode = null;
-  setSyncStatus('local');
-}
-
-// ── SESSION MODAL ─────────────────────────
-function openSessionModal() {
-  document.getElementById('modal-session').classList.add('open');
-}
-
-function generateCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
-async function createSession() {
-  if (!window.storage) { showToast('⚠️ Sync non disponible dans ce contexte'); return; }
-  const code = generateCode();
-  startSync(code);
-  await pushToStorage();
-  document.getElementById('session-created-code').textContent = code;
-  document.getElementById('session-step-create').style.display = 'block';
-  document.getElementById('session-step-join').style.display = 'none';
-  document.getElementById('session-step-active').style.display = 'none';
-  showToast('✅ Session créée : ' + code);
-}
-
-async function joinSession() {
-  const inp = document.getElementById('session-join-input') || document.getElementById('session-join-input2');
-  const code = inp ? inp.value.trim().toUpperCase() : '';
-  if (code.length < 4) { showToast('Code invalide'); return; }
-  if (!window.storage) { showToast('⚠️ Sync non disponible dans ce contexte'); return; }
-  try {
-    const result = await window.storage.get('monmenu:session:' + code, true);
-    if (!result) { showToast('❌ Session introuvable — vérifiez le code'); return; }
-    startSync(code);
-    closeModal('modal-session');
-    showToast('✅ Rejoint la session ' + code);
-  } catch(e) {
-    showToast('❌ Impossible de rejoindre — réessayez');
-  }
-}
-
-function leaveSession() {
-  stopSync();
-  closeModal('modal-session');
-  showToast('Session quittée — mode local');
-}
-
-function copySessionCode() {
-  const code = document.getElementById('session-created-code').textContent;
-  navigator.clipboard?.writeText(code).then(() => showToast('📋 Code copié !'));
-}
-
-function showSessionJoin() {
-  document.getElementById('session-step-create').style.display = 'none';
-  document.getElementById('session-step-join').style.display = 'block';
-  document.getElementById('session-step-active').style.display = 'none';
-}
-
-function openSessionModalFromIndicator() {
-  const modal = document.getElementById('modal-session');
-  // Show correct panel based on current state
-  if (_sessionCode) {
-    document.getElementById('session-step-create').style.display = 'none';
-    document.getElementById('session-step-join').style.display = 'none';
-    document.getElementById('session-step-active').style.display = 'block';
-    document.getElementById('session-active-code').textContent = _sessionCode;
-  } else {
-    document.getElementById('session-step-create').style.display = 'none';
-    document.getElementById('session-step-join').style.display = 'none';
-    document.getElementById('session-step-active').style.display = 'none';
-  }
-  modal.classList.add('open');
-}
-
 // ── PDF FIX ────────────────────────────────
 const _origExportPDF = exportPDF;
 window.exportPDF = function() {
@@ -2055,12 +1824,511 @@ window.exportPlanningPDF = function() {
   catch(e) { showToast('Erreur PDF. Réessayez.'); }
 };
 
+
 // ── INIT ─────────────────────────────────
 document.getElementById('week-nav').style.display='flex';
 renderPlanning();renderRecipes();renderFrigo();buildCourses();renderBudget();
-setSyncStatus('local');
+// setSyncStatus handled by Firebase onAuthStateChanged
 </script>
-<!-- MODAL SESSION COLLABORATION -->
+
+<!-- Firebase Auth + Realtime Sync Module -->
+<script type="module">
+
+// ══════════════════════════════════════════════════════════════════
+// 🔥 FIREBASE — AUTH + FIRESTORE TEMPS RÉEL
+// ══════════════════════════════════════════════════════════════════
+// CONFIGURATION : remplacez par vos propres clés Firebase
+// Créez un projet sur https://console.firebase.google.com
+// puis copiez vos clés de configuration ici
+// ══════════════════════════════════════════════════════════════════
+
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  onAuthStateChanged,
+  updateProfile
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  onSnapshot,
+  serverTimestamp,
+  collection,
+  query,
+  where
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+// ── FIREBASE CONFIG ─────────────────────────────────────────────
+// 🔴 REMPLACEZ CES VALEURS PAR VOTRE CONFIGURATION FIREBASE
+const firebaseConfig = {
+  apiKey: "AIzaSyCVwV4LBCHsKj0yFM_E6FqaQZ7YUR1ZKM8",
+  authDomain: "monmenu-c6aff.firebaseapp.com",
+  projectId: "monmenu-c6aff",
+  storageBucket: "monmenu-c6aff.firebasestorage.app",
+  messagingSenderId: "873498860586",
+  appId: "1:873498860586:web:a67f959a241c3435c3f753"
+};
+
+// ── INIT ────────────────────────────────────────────────────────
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
+
+// ── STATE ────────────────────────────────────────────────────────
+let currentUser = null;
+let currentSessionCode = null; // null = données perso, string = session partagée
+let _firestoreUnsubscribe = null;
+let _localDataStr = null; // pour éviter les boucles d'écriture
+
+// ── UTILS ────────────────────────────────────────────────────────
+function getPersonalDocRef(uid) {
+  return doc(db, 'users', uid, 'data', 'main');
+}
+function getSessionDocRef(code) {
+  return doc(db, 'sessions', code.toUpperCase());
+}
+function getActiveDocRef() {
+  if (currentSessionCode) return getSessionDocRef(currentSessionCode);
+  if (currentUser) return getPersonalDocRef(currentUser.uid);
+  return null;
+}
+
+// ── SYNC STATUS UI ───────────────────────────────────────────────
+function setSyncStatus(state, extra) {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  const indicator = document.getElementById('sync-indicator');
+  if (!dot || !label) return;
+  if (state === 'online') {
+    dot.style.background = '#22c55e';
+    label.textContent = currentSessionCode ? '🔗 ' + currentSessionCode : '☁️ Sync';
+    if (indicator) { indicator.style.borderColor = '#bbf7d0'; indicator.title = currentSessionCode ? 'Session partagée : ' + currentSessionCode : 'Données synchronisées'; }
+  } else if (state === 'saving') {
+    dot.style.background = '#f59e0b';
+    label.textContent = 'Sync…';
+    if (indicator) indicator.style.borderColor = '#fde68a';
+  } else if (state === 'offline') {
+    dot.style.background = '#ef4444';
+    label.textContent = 'Hors ligne';
+    if (indicator) indicator.style.borderColor = '#fca5a5';
+  } else {
+    dot.style.background = '#94a3b8';
+    label.textContent = currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0] || 'Connecté') : 'Non connecté';
+    if (indicator) { indicator.style.borderColor = 'var(--border)'; indicator.title = 'Cliquez pour gérer votre compte'; }
+  }
+}
+
+// ── PUSH DATA ────────────────────────────────────────────────────
+async function pushToFirestore() {
+  const ref = getActiveDocRef();
+  if (!ref) return;
+  setSyncStatus('saving');
+  try {
+    const data = {
+      recipes: RECIPES,
+      planning,
+      frigo: FRIGO,
+      manualItems,
+      coursesChecked,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser ? (currentUser.displayName || currentUser.email) : 'inconnu'
+    };
+    const dataStr = JSON.stringify({ recipes: RECIPES, planning, frigo: FRIGO, manualItems, coursesChecked });
+    _localDataStr = dataStr;
+    await setDoc(ref, data, { merge: true });
+    setSyncStatus('online');
+  } catch (e) {
+    console.error('Erreur push Firestore:', e);
+    setSyncStatus('offline');
+  }
+}
+
+// ── REAL-TIME LISTENER ───────────────────────────────────────────
+function startRealtimeListener() {
+  const ref = getActiveDocRef();
+  if (!ref) return;
+  if (_firestoreUnsubscribe) { _firestoreUnsubscribe(); _firestoreUnsubscribe = null; }
+
+  _firestoreUnsubscribe = onSnapshot(ref, (snap) => {
+    if (!snap.exists()) {
+      // No data yet — push local data
+      pushToFirestore();
+      return;
+    }
+    const remote = snap.data();
+    const remoteStr = JSON.stringify({
+      recipes: remote.recipes, planning: remote.planning, frigo: remote.frigo,
+      manualItems: remote.manualItems, coursesChecked: remote.coursesChecked
+    });
+    // Skip if this is our own write
+    if (remoteStr === _localDataStr) { setSyncStatus('online'); return; }
+    _localDataStr = remoteStr;
+
+    let changed = false;
+    if (remote.recipes && JSON.stringify(remote.recipes) !== JSON.stringify(RECIPES)) {
+      RECIPES = remote.recipes; changed = true;
+    }
+    if (remote.planning && JSON.stringify(remote.planning) !== JSON.stringify(planning)) {
+      planning = remote.planning; changed = true;
+    }
+    if (remote.frigo && JSON.stringify(remote.frigo) !== JSON.stringify(FRIGO)) {
+      FRIGO = remote.frigo; changed = true;
+    }
+    if (remote.manualItems && JSON.stringify(remote.manualItems) !== JSON.stringify(manualItems)) {
+      manualItems = remote.manualItems; changed = true;
+    }
+    if (remote.coursesChecked && JSON.stringify(remote.coursesChecked) !== JSON.stringify(coursesChecked)) {
+      coursesChecked = remote.coursesChecked; changed = true;
+    }
+    if (changed) {
+      renderPlanning(); renderRecipes(); renderFrigo(); buildCourses(); renderBudget();
+      if (remote.updatedBy && remote.updatedBy !== (currentUser?.displayName || currentUser?.email)) {
+        showToast('🔄 Mis à jour par ' + remote.updatedBy);
+      }
+    }
+    setSyncStatus('online');
+  }, (err) => {
+    console.error('Listener Firestore error:', err);
+    setSyncStatus('offline');
+  });
+}
+
+// ── AUTH STATE CHANGE ────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+  if (user) {
+    hideAuthModal();
+    updateUserBadge(user);
+    setSyncStatus('online');
+    startRealtimeListener();
+    // Try to load existing data first
+    try {
+      const snap = await getDoc(getPersonalDocRef(user.uid));
+      if (!snap.exists()) {
+        // First time — push initial data
+        await pushToFirestore();
+      }
+    } catch (e) { /* Will be handled by listener */ }
+  } else {
+    currentUser = null;
+    currentSessionCode = null;
+    if (_firestoreUnsubscribe) { _firestoreUnsubscribe(); _firestoreUnsubscribe = null; }
+    setSyncStatus('local');
+    updateUserBadge(null);
+    showAuthModal();
+  }
+});
+
+// ── AUTH MODAL UI ────────────────────────────────────────────────
+function showAuthModal() {
+  const m = document.getElementById('modal-auth');
+  if (m) m.classList.add('open');
+}
+function hideAuthModal() {
+  const m = document.getElementById('modal-auth');
+  if (m) m.classList.remove('open');
+}
+function updateUserBadge(user) {
+  const label = document.getElementById('sync-label');
+  const dot = document.getElementById('sync-dot');
+  if (user) {
+    const name = user.displayName || user.email?.split('@')[0] || 'Utilisateur';
+    if (label) label.textContent = name;
+    if (dot) dot.style.background = '#22c55e';
+  } else {
+    if (label) label.textContent = 'Se connecter';
+    if (dot) dot.style.background = '#94a3b8';
+  }
+}
+
+// ── AUTH ACTIONS ─────────────────────────────────────────────────
+async function authRegister() {
+  const email = document.getElementById('auth-email')?.value?.trim();
+  const pass = document.getElementById('auth-pass')?.value;
+  const name = document.getElementById('auth-name')?.value?.trim();
+  if (!email || !pass) { showToast('Email et mot de passe requis'); return; }
+  if (pass.length < 6) { showToast('Mot de passe : 6 caractères minimum'); return; }
+  setAuthLoading(true);
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    if (name) await updateProfile(cred.user, { displayName: name });
+    showToast('✅ Compte créé ! Bienvenue ' + (name || email) + ' !');
+  } catch (e) {
+    const msg = {
+      'auth/email-already-in-use': 'Cet email est déjà utilisé',
+      'auth/invalid-email': 'Email invalide',
+      'auth/weak-password': 'Mot de passe trop faible'
+    }[e.code] || 'Erreur : ' + e.message;
+    showToast('❌ ' + msg);
+  } finally { setAuthLoading(false); }
+}
+
+async function authLogin() {
+  const email = document.getElementById('auth-email')?.value?.trim();
+  const pass = document.getElementById('auth-pass')?.value;
+  if (!email || !pass) { showToast('Email et mot de passe requis'); return; }
+  setAuthLoading(true);
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+    showToast('✅ Connecté !');
+  } catch (e) {
+    const msg = {
+      'auth/user-not-found': 'Aucun compte avec cet email',
+      'auth/wrong-password': 'Mot de passe incorrect',
+      'auth/invalid-credential': 'Email ou mot de passe incorrect',
+      'auth/too-many-requests': 'Trop de tentatives — réessayez plus tard'
+    }[e.code] || 'Erreur de connexion';
+    showToast('❌ ' + msg);
+  } finally { setAuthLoading(false); }
+}
+
+async function authGoogle() {
+  setAuthLoading(true);
+  try {
+    await signInWithPopup(auth, googleProvider);
+    showToast('✅ Connecté avec Google !');
+  } catch (e) {
+    if (e.code !== 'auth/popup-closed-by-user') showToast('❌ Connexion Google échouée');
+  } finally { setAuthLoading(false); }
+}
+
+async function authLogout() {
+  try {
+    await signOut(auth);
+    showToast('À bientôt !');
+    closeModal('modal-session');
+  } catch (e) { showToast('Erreur déconnexion'); }
+}
+
+function setAuthLoading(on) {
+  const btn = document.getElementById('auth-submit-btn');
+  const btnG = document.getElementById('auth-google-btn');
+  if (btn) { btn.disabled = on; btn.innerHTML = on ? '<span class="spinner"></span>Chargement…' : btn.dataset.label; }
+  if (btnG) btnG.disabled = on;
+}
+
+function switchAuthMode(mode) {
+  const isLogin = mode === 'login';
+  const nameRow = document.getElementById('auth-name-row');
+  const title = document.getElementById('auth-modal-title');
+  const btn = document.getElementById('auth-submit-btn');
+  const switchEl = document.getElementById('auth-switch-text');
+  if (nameRow) nameRow.style.display = isLogin ? 'none' : 'block';
+  if (title) title.textContent = isLogin ? '🔑 Se connecter' : '📝 Créer un compte';
+  if (btn) {
+    btn.dataset.label = isLogin ? 'Se connecter' : 'Créer mon compte';
+    btn.innerHTML = isLogin ? 'Se connecter' : 'Créer mon compte';
+    btn.onclick = isLogin ? authLogin : authRegister;
+  }
+  if (switchEl) switchEl.innerHTML = isLogin
+    ? 'Pas encore de compte ? <a href="#" onclick="switchAuthMode(\'register\');return false" style="color:var(--g600);font-weight:600">S\'inscrire</a>'
+    : 'Déjà un compte ? <a href="#" onclick="switchAuthMode(\'login\');return false" style="color:var(--g600);font-weight:600">Se connecter</a>';
+}
+
+// ── SESSION PARTAGÉE ─────────────────────────────────────────────
+function generateCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+async function createSession() {
+  if (!currentUser) { showToast('Connectez-vous d\'abord'); return; }
+  const code = generateCode();
+  try {
+    // Create the session doc with current data
+    const ref = getSessionDocRef(code);
+    await setDoc(ref, {
+      recipes: RECIPES, planning, frigo: FRIGO,
+      manualItems, coursesChecked,
+      createdBy: currentUser.uid,
+      createdByName: currentUser.displayName || currentUser.email,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser.displayName || currentUser.email
+    });
+    currentSessionCode = code;
+    startRealtimeListener();
+    document.getElementById('session-created-code').textContent = code;
+    document.getElementById('session-step-create').style.display = 'block';
+    document.getElementById('session-step-home').style.display = 'none';
+    document.getElementById('session-step-active').style.display = 'none';
+    showToast('✅ Session créée : ' + code);
+    setSyncStatus('online');
+  } catch (e) {
+    console.error(e);
+    showToast('Erreur création session');
+  }
+}
+
+async function joinSession() {
+  if (!currentUser) { showToast('Connectez-vous d\'abord'); return; }
+  const inp = document.getElementById('session-join-input') || document.getElementById('session-join-input2');
+  const code = (inp?.value || '').trim().toUpperCase();
+  if (code.length < 4) { showToast('Code invalide'); return; }
+  try {
+    const snap = await getDoc(getSessionDocRef(code));
+    if (!snap.exists()) { showToast('❌ Session introuvable — vérifiez le code'); return; }
+    currentSessionCode = code;
+    startRealtimeListener();
+    closeModal('modal-session');
+    setSyncStatus('online');
+    showToast('✅ Rejoint la session ' + code);
+  } catch (e) {
+    showToast('❌ Impossible de rejoindre — réessayez');
+  }
+}
+
+function leaveSession() {
+  currentSessionCode = null;
+  startRealtimeListener(); // Restart with personal data
+  closeModal('modal-session');
+  showToast('Session quittée — retour à vos données personnelles');
+  setSyncStatus('online');
+}
+
+function copySessionCode() {
+  const code = document.getElementById('session-created-code')?.textContent || currentSessionCode;
+  if (code) navigator.clipboard?.writeText(code).then(() => showToast('📋 Code copié !'));
+}
+
+function openSessionModalFromIndicator() {
+  const modal = document.getElementById('modal-session');
+  if (!currentUser) { showAuthModal(); return; }
+  // Show correct panel
+  document.getElementById('session-step-create').style.display = 'none';
+  document.getElementById('session-step-join').style.display = 'none';
+  if (currentSessionCode) {
+    document.getElementById('session-step-active').style.display = 'block';
+    document.getElementById('session-active-code').textContent = currentSessionCode;
+    document.getElementById('session-step-home').style.display = 'none';
+  } else {
+    document.getElementById('session-step-active').style.display = 'none';
+    document.getElementById('session-step-home').style.display = 'block';
+  }
+  // Show user info
+  const userInfo = document.getElementById('session-user-info');
+  if (userInfo && currentUser) {
+    userInfo.textContent = '👤 ' + (currentUser.displayName || currentUser.email);
+    userInfo.style.display = 'block';
+  }
+  modal.classList.add('open');
+}
+
+// ── WRAP STATE-MUTATING FUNCTIONS → AUTO-PUSH ────────────────────
+const _origRemoveMeal = removeMeal;
+window.removeMeal = function(day, slot) { _origRemoveMeal(day, slot); pushToFirestore(); };
+
+const _origClearPlanning = clearPlanning;
+window.clearPlanning = function() { _origClearPlanning(); pushToFirestore(); };
+
+const _origDeleteRecipe = deleteRecipe;
+window.deleteRecipe = function(id) { _origDeleteRecipe(id); pushToFirestore(); };
+
+const _origSaveRecipe = saveRecipe;
+window.saveRecipe = function() { _origSaveRecipe(); pushToFirestore(); };
+
+const _origCycleFrigo = cycleFrigo;
+window.cycleFrigo = function(id) { _origCycleFrigo(id); pushToFirestore(); };
+
+const _origDelFrigo = delFrigo;
+window.delFrigo = function(id) { _origDelFrigo(id); pushToFirestore(); };
+
+const _origSaveFrigoItem = saveFrigoItem;
+window.saveFrigoItem = function() { _origSaveFrigoItem(); pushToFirestore(); };
+
+const _origAddManualIng = addManualIng;
+window.addManualIng = function() { _origAddManualIng(); pushToFirestore(); };
+
+const _origRemoveManualItem = removeManualItem;
+window.removeManualItem = function(id) { _origRemoveManualItem(id); pushToFirestore(); };
+
+const _origToggleCourse = toggleCourse;
+window.toggleCourse = function(id) { _origToggleCourse(id); pushToFirestore(); };
+
+const _origCheckAllCourses = checkAllCourses;
+window.checkAllCourses = function() { _origCheckAllCourses(); pushToFirestore(); };
+
+const _origAddSeasonToList = addSeasonToList;
+window.addSeasonToList = function() { _origAddSeasonToList(); pushToFirestore(); };
+
+const _syncOrigClose = window.closeModal;
+window.closeModal = function(id) {
+  if (id === 'modal-pick') { setTimeout(pushToFirestore, 100); }
+  _syncOrigClose && _syncOrigClose(id);
+};
+
+const _origQuickAdd = quickAdd;
+window.quickAdd = function(id) { _origQuickAdd(id); pushToFirestore(); };
+
+const _origImportRecipeFromUrl = importRecipeFromUrl;
+window.importRecipeFromUrl = async function() {
+  await _origImportRecipeFromUrl();
+  await pushToFirestore();
+};
+
+// Expose to global scope (needed since module scope is isolated)
+window.authLogin = authLogin;
+window.authRegister = authRegister;
+window.authGoogle = authGoogle;
+window.authLogout = authLogout;
+window.switchAuthMode = switchAuthMode;
+window.createSession = createSession;
+window.joinSession = joinSession;
+window.leaveSession = leaveSession;
+window.copySessionCode = copySessionCode;
+window.openSessionModalFromIndicator = openSessionModalFromIndicator;
+
+</script>
+
+<!-- ══ MODAL AUTH (Firebase) ══════════════════════════════════ -->
+<div class="modal-bg" id="modal-auth">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <div class="modal-title" id="auth-modal-title">🔑 Se connecter</div>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">Connectez-vous pour sauvegarder vos données dans le cloud et les partager avec votre famille.</p>
+
+    <!-- Google -->
+    <button id="auth-google-btn" onclick="authGoogle()" class="btn" style="width:100%;justify-content:center;margin-bottom:12px;gap:8px;padding:11px 14px">
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      Continuer avec Google
+    </button>
+
+    <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span style="font-size:11px;color:var(--muted)">ou par email</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+
+    <div id="auth-name-row" style="display:none" class="form-group">
+      <label>Prénom / Pseudo</label>
+      <input id="auth-name" placeholder="Marie" type="text">
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input id="auth-email" placeholder="vous@exemple.com" type="email" onkeydown="if(event.key==='Enter')document.getElementById('auth-pass').focus()">
+    </div>
+    <div class="form-group">
+      <label>Mot de passe</label>
+      <input id="auth-pass" placeholder="6 caractères minimum" type="password" onkeydown="if(event.key==='Enter')document.getElementById('auth-submit-btn').click()">
+    </div>
+
+    <button id="auth-submit-btn" data-label="Se connecter" onclick="authLogin()" class="btn primary" style="width:100%;justify-content:center;margin-bottom:10px;padding:11px 14px">Se connecter</button>
+
+    <p id="auth-switch-text" style="text-align:center;font-size:12px;color:var(--muted)">
+      Pas encore de compte ? <a href="#" onclick="switchAuthMode('register');return false" style="color:var(--g600);font-weight:600">S'inscrire</a>
+    </p>
+  </div>
+</div>
+
+<!-- ══ MODAL SESSION COLLABORATION (Firebase) ══════════════════ -->
 <div class="modal-bg" id="modal-session" onclick="bgClose(event,'modal-session')">
   <div class="modal" style="max-width:380px">
     <div class="modal-header">
@@ -2068,7 +2336,13 @@ setSyncStatus('local');
       <button class="modal-close" onclick="closeModal('modal-session')">&#x2715;</button>
     </div>
 
-    <!-- Panneau actif : session en cours -->
+    <!-- User info badge -->
+    <div id="session-user-info" style="display:none;background:var(--g50);border:1px solid var(--g100);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--g800);font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
+      <span id="session-user-name"></span>
+      <button onclick="authLogout()" class="btn sm danger" style="padding:4px 10px;font-size:11px">Déconnexion</button>
+    </div>
+
+    <!-- Session active -->
     <div id="session-step-active" style="display:none">
       <div style="background:var(--g50);border:1px solid var(--g100);border-radius:var(--r-lg);padding:16px;text-align:center;margin-bottom:16px">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;font-weight:600;letter-spacing:.06em">Session active</div>
@@ -2081,25 +2355,22 @@ setSyncStatus('local');
       </button>
       <button class="btn danger" style="width:100%;justify-content:center" onclick="leaveSession()">
         <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Quitter la session
+        Quitter la session partagée
       </button>
     </div>
 
-    <!-- Panneau accueil : créer ou rejoindre -->
+    <!-- Accueil : créer ou rejoindre -->
     <div id="session-step-home">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">Créez une session et partagez le code à vos proches — ils voient et modifient le planning en temps réel.</p>
-
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">Créez une session et partagez le code à vos proches — ils voient et modifient le planning en temps réel, depuis n'importe quel appareil.</p>
       <button class="btn primary" style="width:100%;justify-content:center;margin-bottom:10px;padding:12px" onclick="createSession()">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
         Créer une nouvelle session
       </button>
-
       <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
         <div style="flex:1;height:1px;background:var(--border)"></div>
         <span style="font-size:11px;color:var(--muted)">ou</span>
         <div style="flex:1;height:1px;background:var(--border)"></div>
       </div>
-
       <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:6px">Rejoindre une session existante</label>
       <div style="display:flex;gap:8px">
         <input id="session-join-input" placeholder="Code à 6 caractères" style="text-transform:uppercase;letter-spacing:4px;font-size:16px;font-weight:700;text-align:center" maxlength="8" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')joinSession()">
@@ -2107,7 +2378,7 @@ setSyncStatus('local');
       </div>
     </div>
 
-    <!-- Confirmation code créé -->
+    <!-- Code créé -->
     <div id="session-step-create" style="display:none">
       <div style="background:var(--g50);border:1px solid var(--g100);border-radius:var(--r-lg);padding:16px;text-align:center;margin-bottom:16px">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;font-weight:600;letter-spacing:.06em">Votre code de session</div>
@@ -2120,22 +2391,19 @@ setSyncStatus('local');
       </button>
       <button class="btn" style="width:100%;justify-content:center" onclick="closeModal('modal-session')">C'est parti !</button>
     </div>
-
-    <!-- Panneau rejoindre -->
-    <div id="session-step-join" style="display:none">
-      <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:6px">Code de session</label>
-      <input id="session-join-input2" placeholder="Ex : AB3K7F" style="text-transform:uppercase;letter-spacing:4px;font-size:18px;font-weight:700;text-align:center;margin-bottom:10px" maxlength="8" oninput="this.value=this.value.toUpperCase()">
-      <button class="btn primary" style="width:100%;justify-content:center" onclick="joinSession()">Rejoindre</button>
-    </div>
   </div>
 </div>
 
 <script>
-// Show home panel by default when modal opens without active session
-document.getElementById('modal-session').addEventListener('click', function(){});
-// Hide step panels on init
-['session-step-active','session-step-create','session-step-join'].forEach(id=>document.getElementById(id).style.display='none');
+// switchAuthMode est dans le <script type="module"> Firebase.
+// On attend que window.switchAuthMode soit disponible (module chargé) avant de l'appeler.
+(function waitForAuthMode() {
+  if (typeof window.switchAuthMode === 'function') {
+    window.switchAuthMode('login');
+  } else {
+    setTimeout(waitForAuthMode, 50);
+  }
+})();
 </script>
-
 </body>
 </html>
