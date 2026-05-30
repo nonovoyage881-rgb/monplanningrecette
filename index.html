@@ -1244,32 +1244,100 @@ function toggleImport(){
 
 // ── IMPORT URL ───────────────────────────
 async function importRecipeFromUrl(){
-  const url=document.getElementById('import-url').value.trim();
-  if(!url){showToast('Colle une URL de recette');return;}
-  const btn=document.getElementById('import-btn');
-  btn.innerHTML='<span class="spinner"></span>Import…';
-  btn.disabled=true;
-  try{
-    const prompt=`Tu es un assistant de cuisine. L'utilisateur veut importer une recette depuis cette URL : "${url}"
-Génère une recette cohérente et réaliste basée sur l'URL (les mots-clés de l'URL donnent le nom du plat).
-Réponds UNIQUEMENT avec un objet JSON valide, sans backticks ni texte autour :
-{"name":"...","emoji":"🍽","time":30,"pers":4,"cal":450,"cost":2.50,"device":"","tags":["rapide"],"desc":"...","photo":"https://images.unsplash.com/photo-XXXXXXXXXXX?w=600&q=80","ings":["ingrédient 1 200g","ingrédient 2"],"steps":["Étape 1","Étape 2"]}
-Règles: device="" ou "micro" ou "airfryer". tags parmi: rapide,végé,viande,poisson,budget,plaisirs,patisserie. cal=calories par personne. cost=coût en euros par personne. Pour photo, choisis une vraie URL Unsplash pertinente parmi celles que tu connais (ex: photo-1612874742237 pour carbonara, photo-1585937421612 pour curry, etc).`;
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+  const url = document.getElementById('import-url').value.trim();
+  if(!url){ showToast('Colle une URL de recette'); return; }
+
+  // Extraire les mots-clés depuis l'URL
+  const urlClean = url.replace(/https?:\/\/[^/]+/,'').replace(/[-_/]/g,' ').replace(/\.[a-z]+$/,'').trim();
+
+  const btn = document.getElementById('import-btn');
+  const origLabel = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span>Analyse…';
+  btn.disabled = true;
+  showToast('🔍 Analyse de la recette…');
+
+  try {
+    const prompt = `Tu es un chef cuisinier expert. On te donne une URL de recette.
+À partir des mots-clés dans l'URL, génère une recette complète et réaliste.
+
+URL : ${url}
+Mots-clés : "${urlClean}"
+
+Réponds UNIQUEMENT avec du JSON valide — aucun texte avant/après, aucun backtick.
+Format exact attendu :
+{"name":"Nom du plat","emoji":"🍽","time":30,"pers":4,"cal":420,"cost":2.80,"device":"","tags":["végé"],"desc":"Description appétissante.","photo":"https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80","ings":["200g farine","3 oeufs","100ml lait"],"steps":["Étape 1 détaillée.","Étape 2.","Étape 3."]}
+
+Règles strictes :
+- device : "" ou "micro" ou "airfryer" uniquement
+- tags : parmi rapide,végé,viande,poisson,budget,plaisirs,patisserie,boisson
+- ings : 6 à 12 ingrédients avec quantités précises
+- steps : 4 à 8 étapes détaillées
+- photo : URL Unsplash valide et pertinente au plat`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1200,
+        messages: [{ role: 'user', content: prompt }]
+      })
     });
-    const data=await resp.json();
-    const text=data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
-    const recipe=JSON.parse(text);
-    recipe.id=++recipeCnt;
+
+    if(!resp.ok){
+      const err = await resp.json().catch(()=>({error:{message:'Erreur réseau ' + resp.status}}));
+      throw new Error(err?.error?.message || 'Erreur ' + resp.status);
+    }
+
+    const data = await resp.json();
+    if(data.error) throw new Error(data.error.message || 'Erreur API');
+
+    const rawText = data.content.map(b => b.text||'').join('');
+
+    // Nettoyage robuste du JSON
+    let jsonText = rawText.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+    if(!jsonText.startsWith('{')){
+      const match = jsonText.match(/\{[\s\S]*\}/);
+      if(match) jsonText = match[0];
+      else throw new Error('Format de réponse invalide — réessayez');
+    }
+
+    const recipe = JSON.parse(jsonText);
+
+    // Validations et valeurs par défaut
+    if(!recipe.name) throw new Error('Nom de recette manquant');
+    if(!Array.isArray(recipe.ings) || !recipe.ings.length) recipe.ings = ['Ingrédients à compléter'];
+    if(!Array.isArray(recipe.steps) || !recipe.steps.length) recipe.steps = ['Étapes à compléter'];
+    recipe.emoji = recipe.emoji || '🍽';
+    recipe.time  = recipe.time  || 30;
+    recipe.pers  = recipe.pers  || 4;
+    recipe.cal   = recipe.cal   || 0;
+    recipe.cost  = recipe.cost  || 0;
+    recipe.tags  = recipe.tags?.length ? recipe.tags : ['rapide'];
+    recipe.id    = ++recipeCnt;
+    recipe.isNew = true;
+
     RECIPES.push(recipe);
     renderRecipes();
-    document.getElementById('import-url').value='';
-    showToast('✅ "'+recipe.name+'" importée !');
-  }catch(e){console.error(e);showToast('Erreur d\'import. Vérifie l\'URL.');}
-  finally{btn.innerHTML='<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Importer';btn.disabled=false;}
+    renderNewRecipes();
+    document.getElementById('import-url').value = '';
+    const expand = document.getElementById('import-expand');
+    if(expand) expand.style.display = 'none';
+    showToast('✅ "' + recipe.name + '" importée !');
+
+  } catch(e) {
+    console.error('Import error:', e);
+    let msg = '❌ Import échoué — réessayez';
+    if(e.message.includes('JSON') || e.message.includes('parse')) msg = '❌ Recette non reconnue — essayez une URL différente';
+    else if(e.message.includes('réseau') || e.message.includes('fetch')) msg = '❌ Erreur réseau — vérifiez votre connexion';
+    else if(e.message) msg = '❌ ' + e.message;
+    showToast(msg);
+  } finally {
+    btn.innerHTML = origLabel;
+    btn.disabled = false;
+  }
 }
+
 
 // ── COURSES ──────────────────────────────
 const CAT_KEYS={
