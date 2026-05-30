@@ -292,17 +292,7 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
 /* ── NOUVEAUTÉS BADGE ── */
 .recipe-new-badge{position:absolute;top:8px;left:8px;background:var(--g600);color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;z-index:2}
 .recipe-season-badge{position:absolute;top:8px;left:8px;background:#16a34a;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;z-index:2}
-/* ── CAROUSEL NOUVEAUTÉS ── */
-.new-recipes-section{margin-bottom:14px}
-.new-recipes-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.new-recipes-scroll::-webkit-scrollbar{display:none}
-.new-recipe-card{flex-shrink:0;width:160px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow)}
-.new-recipe-card:hover{border-color:var(--g400);transform:translateY(-2px)}
-.new-recipe-img{width:100%;height:100px;object-fit:cover;display:block}
-.new-recipe-img-fallback{height:100px;background:var(--g50);display:flex;align-items:center;justify-content:center;font-size:32px}
-.new-recipe-info{padding:8px 10px}
-.new-recipe-name{font-family:'Playfair Display',serif;font-size:12px;font-weight:700;line-height:1.3;margin-bottom:4px}
-.new-recipe-meta{font-size:10px;color:var(--muted)}
+/* ── CAROUSEL (remplacé par page Découverte) ── */
 /* ── VIDEO PLAYER ── */
 .video-section{margin:12px 0}
 .video-container{position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:var(--r-lg);background:#000}
@@ -310,6 +300,81 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
 .video-label{font-size:11px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:5px}
 /* ── PAGE FAVORIS ── */
 #page-favoris .recipes-list{display:grid;gap:10px}
+
+/* ── ADMIN PANEL ── */
+.admin-panel{background:var(--card);border:2px solid var(--g100);border-radius:var(--r-lg);padding:16px;margin-bottom:14px}
+.admin-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.admin-icon{font-size:24px}
+.admin-title{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--g800);flex:1}
+.admin-subtitle{font-size:11px;color:var(--muted);margin-top:1px}
+.admin-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.admin-stat{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center}
+.admin-stat .val{font-size:22px;font-weight:700;color:var(--g600);font-family:'Playfair Display',serif;font-style:italic}
+.admin-stat .lbl{font-size:10px;color:var(--muted);margin-top:2px}
+/* Pending cards */
+.pending-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.pending-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;position:relative}
+.pending-card-header{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--card)}
+.pending-card-emoji{font-size:24px}
+.pending-card-info{flex:1}
+.pending-card-name{font-family:'Playfair Display',serif;font-size:14px;font-weight:700}
+.pending-card-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.pending-card-season{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--g50);color:var(--g600)}
+.pending-card-body{padding:10px 12px}
+.pending-card-desc{font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5}
+.pending-card-ings{font-size:11px;color:var(--text);line-height:1.7}
+.pending-actions{display:flex;gap:8px;padding:10px 12px;background:var(--card);border-top:1px solid var(--border)}
+.pending-card.approved{border-color:#22c55e;border-width:2px}
+.pending-card.rejected{opacity:.5}
+.pending-badge{position:absolute;top:10px;right:10px;font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.06em}
+.pending-badge.new{background:#fef9c3;color:#a16207}
+.pending-badge.approved{background:#dcfce7;color:#166534}
+.pending-badge.rejected{background:var(--c50);color:var(--c600)}
+/* Enrichissement progress */
+.enrich-progress{background:var(--g50);border:1px solid var(--g100);border-radius:var(--r);padding:12px;margin-bottom:12px}
+.enrich-progress-bar{height:6px;background:var(--border);border-radius:4px;overflow:hidden;margin:8px 0 4px}
+.enrich-progress-fill{height:6px;background:var(--g600);border-radius:4px;transition:width .4s ease;width:0%}
+.enrich-progress-label{font-size:11px;color:var(--muted);text-align:center}
+/* Planifier badge */
+.next-enrich-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--a50);border:1px solid var(--a600);border-radius:20px;font-size:11px;font-weight:600;color:var(--a600)}
+
+/* ── PAGE DÉCOUVERTE ── */
+.decouverte-hero{background:linear-gradient(135deg,var(--g600) 0%,var(--g800) 100%);border-radius:var(--r-lg);padding:20px 18px 18px;margin-bottom:16px;color:#fff;position:relative;overflow:hidden}
+.decouverte-hero::before{content:'';position:absolute;top:-20px;right:-20px;width:120px;height:120px;background:rgba(255,255,255,.08);border-radius:50%}
+.decouverte-hero::after{content:'';position:absolute;bottom:-30px;right:20px;width:80px;height:80px;background:rgba(255,255,255,.05);border-radius:50%}
+.decouverte-hero-title{font-family:'Playfair Display',serif;font-size:24px;font-weight:700;font-style:italic;margin-bottom:4px;position:relative}
+.decouverte-hero-sub{font-size:12px;opacity:.8;position:relative}
+.decouverte-season-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;margin-top:10px;position:relative}
+.decouverte-section{margin-bottom:20px}
+.decouverte-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.decouverte-section-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.decouverte-section-count{font-size:11px;color:var(--muted)}
+/* Grille découverte — 2 colonnes */
+.decouverte-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.decouverte-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);position:relative}
+.decouverte-card:hover{border-color:var(--g400);transform:translateY(-2px)}
+.decouverte-card-img{width:100%;height:110px;object-fit:cover;display:block}
+.decouverte-card-img-fallback{height:110px;background:var(--g50);display:flex;align-items:center;justify-content:center;font-size:34px}
+.decouverte-card-body{padding:9px 10px}
+.decouverte-card-name{font-family:'Playfair Display',serif;font-size:13px;font-weight:700;line-height:1.3;margin-bottom:4px}
+.decouverte-card-meta{font-size:10px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap}
+.decouverte-card-actions{display:flex;gap:5px;padding:0 10px 9px}
+/* Pill saison colorée */
+.pill-printemps{background:#fce7f3;color:#9d174d}
+.pill-ete{background:#fef9c3;color:#854d0e}
+.pill-automne{background:#ffedd5;color:#9a3412}
+.pill-hiver{background:#e0f2fe;color:#0c4a6e}
+/* Featured card (pleine largeur) */
+.decouverte-card-featured{grid-column:1/-1}
+.decouverte-card-featured .decouverte-card-img,.decouverte-card-featured .decouverte-card-img-fallback{height:160px}
+/* Empty state */
+.decouverte-empty{text-align:center;padding:30px 20px;color:var(--muted)}
+.decouverte-empty-icon{font-size:44px;margin-bottom:10px}
+/* Tabs dans découverte */
+.decouverte-tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.decouverte-tabs::-webkit-scrollbar{display:none}
+.dtab{flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--card);cursor:pointer;transition:.15s;font-family:'Outfit',sans-serif;color:var(--muted)}
+.dtab.active{background:var(--g600);color:#fff;border-color:var(--g600)}
 </style>
 </head>
 <body>
@@ -365,6 +430,13 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
 <!-- RECETTES -->
 <div class="page" id="page-recettes">
 
+  <!-- Accès admin discret -->
+  <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+    <button onclick="showPage('admin')" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;padding:2px 0;font-family:'Outfit',sans-serif">
+      <svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Enrichissement IA <span id="admin-badge-small" style="display:none;background:#f59e0b;color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700"></span>
+    </button>
+  </div>
   <!-- Two action cards -->
   <div class="add-actions-grid">
     <!-- Import URL -->
@@ -389,9 +461,6 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
       <button class="add-action-btn add-action-btn--white" onclick="openAddRecipeModal()">Nouvelle recette</button>
     </div>
   </div>
-
-  <!-- Nouvelles recettes carousel -->
-  <div class="new-recipes-section" id="new-recipes-section"></div>
 
   <!-- Search + filters -->
   <div style="display:flex;gap:8px;margin-bottom:10px">
@@ -525,6 +594,36 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
   </div>
 </div>
 
+<!-- DÉCOUVERTE -->
+<div class="page" id="page-decouverte">
+
+  <!-- Hero saison -->
+  <div class="decouverte-hero">
+    <div class="decouverte-hero-title">Découverte</div>
+    <div class="decouverte-hero-sub">Nouvelles recettes &amp; inspirations de saison</div>
+    <div class="decouverte-season-pill" id="dec-season-pill">🌿 Saison</div>
+  </div>
+
+  <!-- Tabs filtres -->
+  <div class="decouverte-tabs">
+    <button class="dtab active" data-dtab="nouveautes" onclick="switchDecouverteTab(this,'nouveautes')">✨ Nouveautés</button>
+    <button class="dtab" data-dtab="saison" onclick="switchDecouverteTab(this,'saison')">🌿 De saison</button>
+    <button class="dtab" data-dtab="rapide" onclick="switchDecouverteTab(this,'rapide')">⚡ Rapides</button>
+    <button class="dtab" data-dtab="budget" onclick="switchDecouverteTab(this,'budget')">💰 Budget</button>
+    <button class="dtab" data-dtab="plaisirs" onclick="switchDecouverteTab(this,'plaisirs')">😋 Plaisirs</button>
+  </div>
+
+  <!-- Compteur -->
+  <div class="decouverte-section-header">
+    <div class="decouverte-section-title" id="dec-section-title">NOUVELLES RECETTES</div>
+    <div class="decouverte-section-count" id="dec-section-count"></div>
+  </div>
+
+  <!-- Grille -->
+  <div id="decouverte-grid"></div>
+
+</div>
+
 <!-- FAVORIS -->
 <div class="page" id="page-favoris">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
@@ -535,6 +634,54 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
     <span style="font-size:28px">❤️</span>
   </div>
   <div class="recipes-list" id="favorites-list"></div>
+</div>
+
+<!-- ADMIN ENRICHISSEMENT -->
+<div class="page" id="page-admin">
+  <div class="admin-panel">
+    <div class="admin-header">
+      <div class="admin-icon">🧑‍🍳</div>
+      <div>
+        <div class="admin-title">Enrichissement auto</div>
+        <div class="admin-subtitle">Nouvelles recettes générées par IA, saison par saison</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="admin-stats">
+      <div class="admin-stat"><div class="val" id="adm-total">—</div><div class="lbl">Recettes totales</div></div>
+      <div class="admin-stat"><div class="val" id="adm-pending">—</div><div class="lbl">En attente</div></div>
+      <div class="admin-stat"><div class="val" id="adm-added">—</div><div class="lbl">Ajoutées ce mois</div></div>
+    </div>
+
+    <!-- Prochain enrichissement -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <span class="next-enrich-badge" id="next-enrich-label">⏰ Prochain enrichissement : dans 7 jours</span>
+      <button class="btn sm primary" onclick="triggerEnrichment()" id="enrich-btn">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Générer maintenant
+      </button>
+    </div>
+
+    <!-- Progress enrichissement -->
+    <div class="enrich-progress" id="enrich-progress" style="display:none">
+      <div style="font-size:12px;font-weight:600;color:var(--g800)" id="enrich-step-label">Génération en cours…</div>
+      <div class="enrich-progress-bar"><div class="enrich-progress-fill" id="enrich-progress-fill"></div></div>
+      <div class="enrich-progress-label" id="enrich-progress-pct">0 / 5 recettes</div>
+    </div>
+
+    <!-- Filtres modération -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="chip active" data-filter="all" onclick="filterPending(this,'all')">Toutes</span>
+      <span class="chip" data-filter="pending" onclick="filterPending(this,'pending')">⏳ En attente</span>
+      <span class="chip" data-filter="approved" onclick="filterPending(this,'approved')">✅ Approuvées</span>
+      <span class="chip" data-filter="rejected" onclick="filterPending(this,'rejected')">❌ Rejetées</span>
+    </div>
+
+    <div id="pending-list" class="pending-list">
+      <p style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0">Aucune recette en attente.<br>Cliquez sur "Générer maintenant" pour démarrer.</p>
+    </div>
+  </div>
 </div>
 
 </div><!-- main-content -->
@@ -553,6 +700,10 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
   </button>
   <button class="nav-item" id="nav-frigo" onclick="showPage('frigo')">
     <svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="9" y1="6" x2="9" y2="8"/><line x1="9" y1="14" x2="9" y2="18"/></svg>Frigo
+  </button>
+  <button class="nav-item" id="nav-decouverte" onclick="showPage('decouverte')">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M11 8v3l2 2"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Découverte
+    <span class="nav-badge" id="dec-badge" style="background:var(--g600)"></span>
   </button>
   <button class="nav-item" id="nav-favoris" onclick="showPage('favoris')">
     <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>Favoris
@@ -783,13 +934,17 @@ function showPage(id){
   document.getElementById('page-'+id).classList.add('active');
   document.getElementById('nav-'+id)?.classList.add('active');
   document.getElementById('week-nav').style.display=id==='planning'?'flex':'none';
-  const labels={planning:'Planning semaine',recettes:'Mes recettes',courses:'Liste de courses',frigo:'Mon frigo & placard',budget:'Budget semaine',favoris:'Mes favoris'};
+  const labels={planning:'Planning semaine',recettes:'Mes recettes',courses:'Liste de courses',frigo:'Mon frigo & placard',budget:'Budget semaine',favoris:'Mes favoris',decouverte:'Découverte',admin:'🧑‍🍳 Enrichissement IA'};
   document.getElementById('topbar-sub').textContent=labels[id]||'';
   if(id==='planning') renderPlanning();
-  if(id==='recettes'){renderRecipes();renderNewRecipes();}
+  if(id==='recettes'){renderRecipes();renderNewRecipes();
+// Init badge découverte
+(()=>{const n=getNewRecipes().length;const b=document.getElementById('dec-badge');if(b){b.textContent=n;b.style.display=n>0?'block':'none';}})();}
   if(id==='frigo') renderFrigo();
   if(id==='budget') renderBudget();
   if(id==='favoris') renderFavorites();
+  if(id==='decouverte') renderDecouverte('nouveautes');
+  if(id==='admin') renderAdminPanel();
 }
 
 // ── WEEK ─────────────────────────────────
@@ -1800,51 +1955,111 @@ function getNewRecipes(){
   return sorted.slice(0,6);
 }
 function renderNewRecipes(){
-  const sec=document.getElementById('new-recipes-section');
-  if(!sec) return;
-  const newR=getNewRecipes();
-  const seasonR=getSeasonalRecipes().slice(0,4);
-  if(!newR.length&&!seasonR.length){sec.innerHTML='';return;}
-  const season=getCurrentSeason();
-  const seasonLabel={printemps:'🌸 Printemps',ete:'☀️ Été',automne:'🍂 Automne',hiver:'❄️ Hiver'}[season];
-  let html='';
-  // Section nouveautés
-  if(newR.length){
-    html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">✨ Nouvelles recettes</div>
-    </div>
-    <div class="new-recipes-scroll" id="new-recipes-scroll">`;
-    newR.forEach(r=>{
-      const img=r.photo?`<img src="${r.photo}" class="new-recipe-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="new-recipe-img-fallback" style="display:none">${r.emoji}</div>`:`<div class="new-recipe-img-fallback">${r.emoji}</div>`;
-      html+=`<div class="new-recipe-card" onclick="openRecipeDetail(${r.id})">
-        <div style="position:relative">${img}<span class="recipe-new-badge">✨ Nouveau</span></div>
-        <div class="new-recipe-info">
-          <div class="new-recipe-name">${r.name}</div>
-          <div class="new-recipe-meta">⏱ ${r.time} min · 💶 ${r.cost.toFixed(2)} €</div>
-        </div>
-      </div>`;
-    });
-    html+='</div>';
+  // Redirige vers renderDecouverte si la page est active
+  if(document.getElementById('page-decouverte')?.classList.contains('active')){
+    renderDecouverte(_decouverteTab||'nouveautes');
   }
-  // Section saison
-  if(seasonR.length){
-    html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0 8px">
-      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">${seasonLabel} · De saison</div>
-    </div>
-    <div class="new-recipes-scroll">`;
-    seasonR.forEach(r=>{
-      const img=r.photo?`<img src="${r.photo}" class="new-recipe-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="new-recipe-img-fallback" style="display:none">${r.emoji}</div>`:`<div class="new-recipe-img-fallback">${r.emoji}</div>`;
-      html+=`<div class="new-recipe-card" onclick="openRecipeDetail(${r.id})">
-        <div style="position:relative">${img}<span class="recipe-season-badge">🌿 Saison</span></div>
-        <div class="new-recipe-info">
-          <div class="new-recipe-name">${r.name}</div>
-          <div class="new-recipe-meta">⏱ ${r.time} min · 💶 ${r.cost.toFixed(2)} €</div>
-        </div>
-      </div>`;
-    });
-    html+='</div>';
+  // Met à jour le badge découverte
+  const newCount = getNewRecipes().length;
+  const badge = document.getElementById('dec-badge');
+  if(badge){ badge.textContent=newCount; badge.style.display=newCount>0?'block':'none'; }
+}
+
+// ── PAGE DÉCOUVERTE ───────────────────────────────────────────
+let _decouverteTab = 'nouveautes';
+
+function switchDecouverteTab(el, tab){
+  _decouverteTab = tab;
+  document.querySelectorAll('.dtab').forEach(b=>b.classList.toggle('active', b.dataset.dtab===tab));
+  renderDecouverte(tab);
+}
+window.switchDecouverteTab = switchDecouverteTab;
+
+function renderDecouverte(tab){
+  _decouverteTab = tab||'nouveautes';
+  const grid = document.getElementById('decouverte-grid');
+  const titleEl = document.getElementById('dec-section-title');
+  const countEl = document.getElementById('dec-section-count');
+  const seasonPill = document.getElementById('dec-season-pill');
+  if(!grid) return;
+
+  // Hero saison
+  const season = getCurrentSeason();
+  const seasonMeta = {
+    printemps:{label:'🌸 Printemps',pill:'pill-printemps',emoji:'🌸'},
+    ete:{label:'☀️ Été',pill:'pill-ete',emoji:'☀️'},
+    automne:{label:'🍂 Automne',pill:'pill-automne',emoji:'🍂'},
+    hiver:{label:'❄️ Hiver',pill:'pill-hiver',emoji:'❄️'}
+  }[season] || {label:'🌿 Saison',pill:'',emoji:'🌿'};
+
+  if(seasonPill){
+    seasonPill.textContent = seasonMeta.label + ' — recettes fraîches';
+    seasonPill.className = 'decouverte-season-pill ' + seasonMeta.pill;
   }
-  sec.innerHTML=html;
+
+  // Choisir les recettes selon le tab
+  let recipes = [];
+  let sectionTitle = '';
+  if(tab === 'nouveautes'){
+    recipes = getNewRecipes();
+    sectionTitle = '✨ NOUVELLES RECETTES';
+  } else if(tab === 'saison'){
+    recipes = getSeasonalRecipes();
+    sectionTitle = seasonMeta.emoji + ' DE SAISON';
+  } else {
+    // filtrer par tag
+    recipes = RECIPES.filter(r=>r.tags&&r.tags.includes(tab));
+    const tabLabels = {rapide:'⚡ RECETTES RAPIDES',budget:'💰 RECETTES BUDGET',plaisirs:'😋 PETITS PLAISIRS'};
+    sectionTitle = tabLabels[tab] || tab.toUpperCase();
+  }
+
+  if(titleEl) titleEl.textContent = sectionTitle;
+  if(countEl) countEl.textContent = recipes.length + ' recette' + (recipes.length>1?'s':'');
+
+  // Badge nav
+  const newCount = getNewRecipes().length;
+  const badge = document.getElementById('dec-badge');
+  if(badge){ badge.textContent=newCount; badge.style.display=newCount>0?'block':'none'; }
+
+  if(!recipes.length){
+    grid.innerHTML = `<div class="decouverte-empty">
+      <div class="decouverte-empty-icon">🔍</div>
+      <div style="font-family:'Playfair Display',serif;font-size:16px;color:var(--text);margin-bottom:6px">Aucune recette pour l'instant</div>
+      <p style="font-size:13px">Générez des recettes via l'onglet<br>Enrichissement IA dans Recettes.</p>
+    </div>`;
+    return;
+  }
+
+  // Construire la grille
+  let out = '<div class="decouverte-grid">';
+  recipes.forEach((r, idx) => {
+    const isFeatured = idx === 0; // première carte pleine largeur
+    const isNew    = r.isNew ? '<span class="recipe-new-badge">✨ Nouveau</span>' : '';
+    const isSeason = r.isSeasonal ? '<span class="recipe-season-badge">🌿 Saison</span>' : '';
+    const badge2   = isNew || isSeason;
+    const imgHtml  = r.photo
+      ? `<img src="${r.photo}" class="decouverte-card-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="decouverte-card-img-fallback" style="display:none">${r.emoji}</div>`
+      : `<div class="decouverte-card-img-fallback">${r.emoji}</div>`;
+    const isFav = favorites.has(r.id);
+    out += `<div class="decouverte-card${isFeatured?' decouverte-card-featured':''}">
+      <div style="position:relative">${imgHtml}${badge2}</div>
+      <div class="decouverte-card-body">
+        <div class="decouverte-card-name">${r.name}</div>
+        <div class="decouverte-card-meta">
+          <span>⏱ ${r.time} min</span>
+          <span>👤 ${r.pers} pers</span>
+          <span>💶 ${r.cost.toFixed(2)} €</span>
+        </div>
+      </div>
+      <div class="decouverte-card-actions">
+        <button class="btn sm" style="flex:1" onclick="openRecipeDetail(${r.id})">Voir</button>
+        <button class="btn sm primary" style="flex:1" onclick="quickAdd(${r.id})">+ Planning</button>
+        <button class="fav-btn" onclick="toggleFavorite(${r.id});renderDecouverte('${tab}')" id="fav-btn-dec-${r.id}">${isFav?'❤️':'🤍'}</button>
+      </div>
+    </div>`;
+  });
+  out += '</div>';
+  grid.innerHTML = out;
 }
 
 // ── VIDÉO EMBED ──────────────────────────
@@ -1860,6 +2075,320 @@ function buildVideoEmbed(url){
   if(url.match(/\.(mp4|webm|ogg)$/i)) return `<video controls preload="metadata"><source src="${url}"></video>`;
   // Iframe générique
   return `<iframe src="${url}" allowfullscreen loading="lazy"></iframe>`;
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// 🤖 MOTEUR D'ENRICHISSEMENT AUTOMATIQUE DE RECETTES
+// ══════════════════════════════════════════════════════════════════
+
+// ── CONFIG ──────────────────────────────────────────────────────
+const ENRICH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
+const ENRICH_COUNT = 5;   // recettes générées par session
+const ENRICH_LS_KEY = 'monmenu_last_enrich'; // localStorage pour la date
+
+// Stockage local des recettes en attente de modération
+let pendingRecipes = [];   // [{...recipeObj, status:'pending'|'approved'|'rejected', addedAt}]
+let pendingFilter  = 'all';
+let enrichRunning  = false;
+
+// ── UTILITAIRES ANTI-DOUBLONS ────────────────────────────────────
+function normalizeName(name){
+  return name.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9 ]/g,'').trim();
+}
+function isDuplicate(name){
+  const n = normalizeName(name);
+  const inRecipes = RECIPES.some(r => normalizeName(r.name) === n);
+  const inPending = pendingRecipes.some(r => normalizeName(r.name) === n);
+  return inRecipes || inPending;
+}
+
+// ── PROCHAINE DATE D'ENRICHISSEMENT ─────────────────────────────
+function getNextEnrichDate(){
+  const last = parseInt(localStorage.getItem(ENRICH_LS_KEY)||'0');
+  return new Date(last + ENRICH_INTERVAL_MS);
+}
+function updateNextEnrichLabel(){
+  const next = getNextEnrichDate();
+  const now  = Date.now();
+  const lbl  = document.getElementById('next-enrich-label');
+  if(!lbl) return;
+  if(now >= next.getTime()){
+    lbl.textContent = '✅ Enrichissement disponible !';
+    lbl.style.background = '#dcfce7'; lbl.style.borderColor = '#22c55e'; lbl.style.color = '#166534';
+  } else {
+    const diffDays = Math.ceil((next.getTime()-now)/(1000*60*60*24));
+    lbl.textContent = '⏰ Prochain enrichissement : dans '+diffDays+' jour'+(diffDays>1?'s':'');
+    lbl.style.background = ''; lbl.style.borderColor = ''; lbl.style.color = '';
+  }
+}
+function updateAdminBadge(){
+  const nb  = pendingRecipes.filter(r=>r.status==='pending').length;
+  const bdg = document.getElementById('admin-badge');
+  if(bdg){ bdg.textContent=nb; bdg.style.display=nb>0?'block':'none'; }
+  const bdgS = document.getElementById('admin-badge-small');
+  if(bdgS){ bdgS.textContent=nb; bdgS.style.display=nb>0?'inline':'none'; }
+  // Badge découverte = nouveautés en attente de validation
+  const newCount = getNewRecipes().length;
+  const decBdg = document.getElementById('dec-badge');
+  if(decBdg){ decBdg.textContent=newCount; decBdg.style.display=newCount>0?'block':'none'; }
+}
+function updateAdminStats(){
+  const added = pendingRecipes.filter(r=>r.status==='approved').length;
+  const pending = pendingRecipes.filter(r=>r.status==='pending').length;
+  const el1=document.getElementById('adm-total');
+  const el2=document.getElementById('adm-pending');
+  const el3=document.getElementById('adm-added');
+  if(el1) el1.textContent = RECIPES.length;
+  if(el2) el2.textContent = pending;
+  if(el3) el3.textContent = added;
+}
+
+// ── GÉNÉRATION IA (Claude Anthropic) ────────────────────────────
+async function generateOneRecipe(season, existingNames){
+  const seasonFr = {printemps:'printemps (mars-mai)',ete:'été (juin-août)',automne:'automne (septembre-novembre)',hiver:'hiver (décembre-février)'}[season] || season;
+  const tagsPool = {
+    printemps:['végé','poisson','rapide','budget'],
+    ete:['végé','boisson','rapide','plaisirs'],
+    automne:['viande','plaisirs','patisserie','budget'],
+    hiver:['viande','plaisirs','budget','patisserie']
+  };
+  const preferredTags = tagsPool[season] || ['rapide','végé'];
+  const avoidNames = existingNames.slice(0,30).join(', ');
+
+  const prompt = `Tu es un chef cuisinier français. Génère UNE recette de saison pour la saison : ${seasonFr}.
+Règles STRICTES :
+- La recette doit être DIFFÉRENTE de ces noms déjà existants : ${avoidNames}
+- Utilise des ingrédients de saison adaptés
+- Tags à préférer parmi : ${preferredTags.join(', ')}
+Réponds UNIQUEMENT avec un objet JSON valide (sans backticks, sans texte autour) :
+{"name":"...","emoji":"🍽","time":30,"pers":4,"cal":450,"cost":2.50,"device":"","tags":["rapide"],"desc":"Description courte et appétissante.","photo":"https://images.unsplash.com/photo-XXXXXXXXXXX?w=600&q=80","ings":["ingrédient 1 quantité","ingrédient 2 quantité"],"steps":["Étape 1.","Étape 2.","Étape 3."]}
+Règles JSON : device = "" ou "micro" ou "airfryer". tags parmi: rapide,végé,viande,poisson,budget,plaisirs,patisserie,boisson. cal = calories/personne. cost = coût euros/personne. photo = vraie URL Unsplash.`;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:800,
+      messages:[{role:'user',content:prompt}]
+    })
+  });
+  const data = await resp.json();
+  const text = data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+  return JSON.parse(text);
+}
+
+// ── DÉCLENCHEUR PRINCIPAL ────────────────────────────────────────
+async function triggerEnrichment(force=false){
+  if(enrichRunning){ showToast('⏳ Génération déjà en cours…'); return; }
+  const now = Date.now();
+  const last = parseInt(localStorage.getItem(ENRICH_LS_KEY)||'0');
+  if(!force && now - last < ENRICH_INTERVAL_MS){
+    const jours = Math.ceil((last + ENRICH_INTERVAL_MS - now)/(1000*60*60*24));
+    if(!confirm('Le prochain enrichissement est dans '+jours+' jour'+(jours>1?'s':'')+'. Générer quand même maintenant ?')) return;
+  }
+  enrichRunning = true;
+  const btn = document.getElementById('enrich-btn');
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Génération…'; }
+
+  // Afficher la barre de progression
+  const prog = document.getElementById('enrich-progress');
+  const progFill = document.getElementById('enrich-progress-fill');
+  const progLbl  = document.getElementById('enrich-progress-pct');
+  const stepLbl  = document.getElementById('enrich-step-label');
+  if(prog) prog.style.display='block';
+
+  const season = getCurrentSeason();
+  const existingNames = RECIPES.map(r=>r.name).concat(pendingRecipes.map(r=>r.name));
+  let generated = 0;
+  let errors = 0;
+  const maxId = Math.max(...RECIPES.map(r=>r.id), ...pendingRecipes.map(r=>r.id||0), 100);
+
+  for(let i=0; i<ENRICH_COUNT; i++){
+    if(stepLbl) stepLbl.textContent = 'Génération recette '+(i+1)+' / '+ENRICH_COUNT+'…';
+    if(progFill) progFill.style.width = ((i/ENRICH_COUNT)*100)+'%';
+    if(progLbl)  progLbl.textContent = generated+' / '+ENRICH_COUNT+' recettes';
+    try {
+      const recipe = await generateOneRecipe(season, existingNames);
+      if(!recipe.name) throw new Error('Nom manquant');
+      if(isDuplicate(recipe.name)){
+        console.log('Doublon ignoré:', recipe.name);
+        continue;
+      }
+      const pending = {
+        ...recipe,
+        id: maxId + generated + 1,
+        isNew: true,
+        isSeasonal: true,
+        season,
+        status: 'pending',
+        addedAt: new Date().toISOString()
+      };
+      pendingRecipes.push(pending);
+      existingNames.push(recipe.name);
+      generated++;
+      renderPendingList();
+      updateAdminBadge();
+      updateAdminStats();
+    } catch(e){
+      console.error('Erreur génération recette:', e);
+      errors++;
+    }
+    // Petite pause entre les appels
+    await new Promise(res=>setTimeout(res,600));
+  }
+
+  // Finaliser
+  if(progFill) progFill.style.width='100%';
+  if(stepLbl)  stepLbl.textContent = '✅ '+generated+' recette'+(generated>1?'s générées':'recette générée')+(errors?' ('+errors+' erreur'+(errors>1?'s':'')+')':'');
+  if(progLbl)  progLbl.textContent = generated+' / '+ENRICH_COUNT+' recettes';
+
+  localStorage.setItem(ENRICH_LS_KEY, now.toString());
+  enrichRunning = false;
+  if(btn){ btn.disabled=false; btn.innerHTML='<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Générer maintenant'; }
+
+  updateNextEnrichLabel();
+  showToast('✨ '+generated+' recette'+(generated>1?'s en attente de validation':'recette en attente'));
+
+  // Sauvegarde des recettes en attente dans Firebase
+  savePendingToFirebase();
+  setTimeout(()=>{ if(prog) prog.style.display='none'; },4000);
+}
+window.triggerEnrichment = triggerEnrichment;
+
+// ── MODÉRATION ───────────────────────────────────────────────────
+function approveRecipe(idx){
+  const p = pendingRecipes[idx];
+  if(!p || p.status==='approved') return;
+  if(isDuplicate(p.name) && !RECIPES.some(r=>r.name===p.name)){
+    showToast('⚠️ "'+p.name+'" existe déjà'); return;
+  }
+  p.status = 'approved';
+  // Intégrer dans RECIPES
+  const newId = Math.max(...RECIPES.map(r=>r.id), 0) + 1;
+  RECIPES.push({...p, id:newId, status:undefined, addedAt:undefined, season:undefined});
+  renderRecipes(); renderNewRecipes(); renderAdminPanel();
+  updateAdminStats(); updateAdminBadge();
+  schedulePush && schedulePush();
+  savePendingToFirebase();
+  showToast('✅ "'+p.name+'" ajoutée aux recettes !');
+}
+function rejectRecipe(idx){
+  const p = pendingRecipes[idx];
+  if(!p) return;
+  p.status = 'rejected';
+  renderPendingList(); updateAdminBadge(); updateAdminStats();
+  savePendingToFirebase();
+  showToast('❌ Recette rejetée');
+}
+function approveAllPending(){
+  const pending = pendingRecipes.filter(r=>r.status==='pending');
+  if(!pending.length){ showToast('Aucune recette en attente'); return; }
+  if(!confirm('Approuver et publier les '+pending.length+' recettes en attente ?')) return;
+  pending.forEach((_,i)=>{ const idx=pendingRecipes.indexOf(_); approveRecipe(idx); });
+  showToast('✅ '+pending.length+' recettes publiées !');
+}
+function rejectAllPending(){
+  const pending = pendingRecipes.filter(r=>r.status==='pending');
+  if(!pending.length){ showToast('Aucune recette en attente'); return; }
+  if(!confirm('Rejeter les '+pending.length+' recettes en attente ?')) return;
+  pending.forEach(p=>{ p.status='rejected'; });
+  renderPendingList(); updateAdminBadge(); updateAdminStats();
+  savePendingToFirebase();
+}
+window.approveRecipe  = approveRecipe;
+window.rejectRecipe   = rejectRecipe;
+window.approveAllPending = approveAllPending;
+window.rejectAllPending  = rejectAllPending;
+
+function filterPending(el, filter){
+  pendingFilter = filter;
+  document.querySelectorAll('#page-admin .chip').forEach(c=>c.classList.toggle('active', c.dataset.filter===filter));
+  renderPendingList();
+}
+window.filterPending = filterPending;
+
+// ── RENDU ────────────────────────────────────────────────────────
+function renderPendingList(){
+  const list = document.getElementById('pending-list');
+  if(!list) return;
+  let items = pendingFilter==='all' ? pendingRecipes : pendingRecipes.filter(r=>r.status===pendingFilter);
+  if(!items.length){
+    const msg = pendingFilter==='all'
+      ? 'Aucune recette en attente.<br>Cliquez sur "Générer maintenant" pour démarrer.'
+      : 'Aucune recette dans cette catégorie.';
+    list.innerHTML='<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0">'+msg+'</p>';
+    return;
+  }
+  list.innerHTML='';
+  items.forEach((r,i)=>{
+    const realIdx = pendingRecipes.indexOf(r);
+    const seasonEmoji={printemps:'🌸',ete:'☀️',automne:'🍂',hiver:'❄️'}[r.season]||'🌿';
+    const statusBadge = r.status==='approved'
+      ? '<span class="pending-badge approved">✅ Publiée</span>'
+      : r.status==='rejected'
+      ? '<span class="pending-badge rejected">❌ Rejetée</span>'
+      : '<span class="pending-badge new">⏳ En attente</span>';
+    const photoHtml = r.photo
+      ? `<img src="${r.photo}" style="width:100%;height:80px;object-fit:cover;display:block" loading="lazy" onerror="this.style.display='none'">`
+      : '';
+    const ingsPreview = (r.ings||[]).slice(0,5).join(' · ')+(r.ings&&r.ings.length>5?' …':'');
+    const actions = r.status==='pending'
+      ? `<button class="btn sm primary" onclick="approveRecipe(${realIdx})" style="flex:1">✅ Publier</button>
+         <button class="btn sm danger" onclick="rejectRecipe(${realIdx})" style="flex:1">❌ Rejeter</button>`
+      : `<button class="btn sm" onclick="rejectRecipe(${realIdx})" style="flex:1;opacity:.6">${r.status==='approved'?'Retirer':'Déjà rejetée'}</button>`;
+    const card = document.createElement('div');
+    card.className = 'pending-card'+(r.status==='approved'?' approved':r.status==='rejected'?' rejected':'');
+    card.innerHTML = `
+      ${photoHtml}
+      ${statusBadge}
+      <div class="pending-card-header">
+        <div class="pending-card-emoji">${r.emoji||'🍽'}</div>
+        <div class="pending-card-info">
+          <div class="pending-card-name">${r.name}</div>
+          <div class="pending-card-meta">⏱ ${r.time} min · 👤 ${r.pers} pers · 💶 ${(r.cost||0).toFixed(2)} €/pers</div>
+        </div>
+        <span class="pending-card-season">${seasonEmoji} ${r.season||''}</span>
+      </div>
+      <div class="pending-card-body">
+        <div class="pending-card-desc">${r.desc||''}</div>
+        <div class="pending-card-ings">${ingsPreview}</div>
+      </div>
+      <div class="pending-actions">${actions}</div>`;
+    list.appendChild(card);
+  });
+}
+
+function renderAdminPanel(){
+  updateAdminStats();
+  updateNextEnrichLabel();
+  updateAdminBadge();
+  renderPendingList();
+}
+
+// ── PERSISTANCE FIREBASE DES RECETTES EN ATTENTE ────────────────
+function savePendingToFirebase(){
+  // Sauvegardé dans un champ séparé du doc partagé
+  if(typeof schedulePush === 'function') schedulePush();
+}
+
+// ── VÉRIFICATION AUTOMATIQUE AU DÉMARRAGE ───────────────────────
+function checkAutoEnrich(){
+  const now = Date.now();
+  const last = parseInt(localStorage.getItem(ENRICH_LS_KEY)||'0');
+  updateNextEnrichLabel();
+  updateAdminBadge();
+  // Si 7 jours se sont écoulés, proposer l'enrichissement (toast non bloquant)
+  if(last > 0 && now - last >= ENRICH_INTERVAL_MS){
+    setTimeout(()=>{
+      showToast('✨ Enrichissement hebdo disponible — onglet Admin');
+      const bdg = document.getElementById('admin-badge');
+      if(bdg){ bdg.textContent='!'; bdg.style.display='block'; }
+    }, 3000);
+  }
 }
 
 // ── TOAST ────────────────────────────────
@@ -1903,6 +2432,7 @@ renderPlanning();renderRecipes();renderFrigo();buildCourses();renderBudget();
 renderNewRecipes();
 // Init badge favoris
 (()=>{const b=document.getElementById('fav-badge');if(b){b.textContent=favorites.size;b.style.display=favorites.size>0?'block':'none';}})();
+checkAutoEnrich();
 // setSyncStatus handled by Firebase onAuthStateChanged
 </script>
 
@@ -1950,7 +2480,7 @@ let _ready                = false; // true dès que le listener est actif
 
 // ── SÉRIALISATION ────────────────────────────────────────────────
 function getStateStr() {
-  return JSON.stringify({ recipes: RECIPES, planning, frigo: FRIGO, manualItems, coursesChecked, favorites: [...favorites] });
+  return JSON.stringify({ recipes: RECIPES, planning, frigo: FRIGO, manualItems, coursesChecked, favorites: [...favorites], pendingRecipes });
 }
 
 // ── STATUT CLOUD ─────────────────────────────────────────────────
@@ -1997,7 +2527,7 @@ async function pushToFirestore() {
     _ignoreNextSnapshot = true;
     await setDoc(SHARED_REF(), {
       recipes: RECIPES, planning, frigo: FRIGO,
-      manualItems, coursesChecked, favorites: [...favorites],
+      manualItems, coursesChecked, favorites: [...favorites], pendingRecipes,
       updatedAt: serverTimestamp()
     }, { merge: true });
     setSyncStatus('online');
@@ -2056,10 +2586,14 @@ function startRealtimeListener() {
         favorites = remFav; changed = true;
       }
     }
+    if (Array.isArray(remote.pendingRecipes) &&
+        JSON.stringify(remote.pendingRecipes) !== JSON.stringify(pendingRecipes)) {
+      pendingRecipes = remote.pendingRecipes; changed = true;
+    }
 
     if (changed) {
       renderPlanning(); renderRecipes(); renderFrigo(); buildCourses(); renderBudget();
-      renderFavorites(); renderNewRecipes();
+      renderFavorites(); renderNewRecipes(); updateAdminBadge();
       showToast('🔄 Données mises à jour');
     }
     setSyncStatus('online');
