@@ -654,6 +654,22 @@ label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bot
       <div class="admin-stat"><div class="val" id="adm-added">—</div><div class="lbl">Ajoutées ce mois</div></div>
     </div>
 
+    <!-- Bandeau configuration clé Gemini -->
+    <div id="gemini-setup-banner" style="background:#fef9c3;border:1px solid #fde047;border-radius:var(--r);padding:12px 14px;margin-bottom:14px;font-size:12px;line-height:1.6">
+      <div style="font-weight:700;color:#854d0e;margin-bottom:4px">🔑 Configuration requise pour la génération IA</div>
+      <div style="color:#713f12">
+        Pour utiliser la génération automatique de recettes, vous avez besoin d'une <strong>clé Gemini gratuite</strong> :<br>
+        1. Allez sur <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--g600);font-weight:600">aistudio.google.com/apikey</a><br>
+        2. Connectez-vous avec votre compte Google<br>
+        3. Cliquez <strong>"Create API key"</strong> → copiez la clé<br>
+        4. Collez-la ci-dessous et sauvegardez
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="gemini-key-input" placeholder="AIzaSy... ou AQ.Ab8R..." style="flex:1;font-size:12px;padding:6px 10px;font-family:monospace" value="">
+        <button class="btn sm primary" onclick="saveGeminiKey()" style="flex-shrink:0">Sauvegarder</button>
+      </div>
+    </div>
+
     <!-- Prochain enrichissement -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <span class="next-enrich-badge" id="next-enrich-label">⏰ Prochain enrichissement : dans 7 jours</span>
@@ -1246,53 +1262,61 @@ function toggleImport(){
 
 // ── WRAPPER APPEL IA — compatible CORS ───────────────────────────
 // Essaie plusieurs routes en cascade pour contourner le CORS
+// ── CLÉ GEMINI (gratuite sur aistudio.google.com) ──────────────
+// Obtenez votre clé gratuite sur https://aistudio.google.com/apikey
+// et remplacez la valeur ci-dessous
+const GEMINI_KEY = 'AIzaSyDemo_RemplacezParVotreVraieCle';
+
 async function callAI(prompt, maxTokens=1000){
-  const body = JSON.stringify({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: prompt }]
-  });
-
-  // Route 1 : appel direct (fonctionne dans Claude.ai / artifacts)
+  // ── Gemini Flash 2.0 — API gratuite, pas de CORS ────────────
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${window._geminiKeyOverride || GEMINI_KEY}`;
+    const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 }
+      })
     });
     if(r.ok){
       const d = await r.json();
-      if(d.content) return d.content.map(b=>b.text||'').join('');
+      const text = d?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if(text) return text;
     }
-  } catch(_){}
+    const err = await r.json().catch(()=>({}));
+    if(err?.error?.status === 'PERMISSION_DENIED' || err?.error?.status === 'INVALID_ARGUMENT' ||
+       err?.error?.message?.includes('API_KEY') || err?.error?.message?.includes('key not valid')){
+      throw new Error('CLE_INVALIDE');
+    }
+  } catch(e){
+    if(e.message === 'CLE_INVALIDE') throw new Error('Clé Gemini invalide — voir instructions ci-dessous');
+    if(!e.message.includes('Clé')) console.warn('Gemini route 1 échouée:', e.message);
+  }
 
-  // Route 2 : proxy corsproxy.io
+  // ── Gemini 1.5 Flash (modèle alternatif) ───────────────────
   try {
-    const r = await fetch('https://corsproxy.io/?' + encodeURIComponent('https://api.anthropic.com/v1/messages'), {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${window._geminiKeyOverride || GEMINI_KEY}`;
+    const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 }
+      })
     });
     if(r.ok){
       const d = await r.json();
-      if(d.content) return d.content.map(b=>b.text||'').join('');
+      const text = d?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if(text) return text;
     }
-  } catch(_){}
+  } catch(e){ console.warn('Gemini route 2 échouée:', e.message); }
 
-  // Route 3 : proxy allorigins
-  try {
-    const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.anthropic.com/v1/messages'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body
-    });
-    if(r.ok){
-      const d = await r.json();
-      if(d.content) return d.content.map(b=>b.text||'').join('');
-    }
-  } catch(_){}
-
-  throw new Error('Service IA indisponible — vérifiez votre connexion internet');
+  // ── Message d'aide si clé non configurée ───────────────────
+  if(!window._geminiKeyOverride && (GEMINI_KEY.includes('Demo') || GEMINI_KEY.includes('Remplacez'))){
+    throw new Error('Clé Gemini non configurée — collez votre clé dans l\'onglet Enrichissement IA');
+  }
+  throw new Error('Service IA indisponible — vérifiez votre connexion');
 }
 
 // Extraire et nettoyer le JSON d'une réponse IA
@@ -2484,6 +2508,43 @@ function checkAutoEnrich(){
     }, 3000);
   }
 }
+
+
+// ── CONFIGURATION CLÉ GEMINI ────────────────────────────────────
+function saveGeminiKey(){
+  const inp = document.getElementById('gemini-key-input');
+  const key = inp?.value?.trim();
+  if(!key || key.length < 20){
+    showToast('❌ Clé invalide — vérifiez qu\'elle est complète');
+    return;
+  }
+  localStorage.setItem('monmenu_gemini_key', key);
+  // Mettre à jour la variable globale
+  window._geminiKeyOverride = key;
+  showToast('✅ Clé Gemini sauvegardée !');
+  // Masquer le bandeau
+  const banner = document.getElementById('gemini-setup-banner');
+  if(banner) banner.style.display = 'none';
+}
+window.saveGeminiKey = saveGeminiKey;
+
+// Charger la clé depuis localStorage au démarrage
+(function loadGeminiKey(){
+  const saved = localStorage.getItem('monmenu_gemini_key');
+  if(saved){
+    window._geminiKeyOverride = saved;
+    const banner = document.getElementById('gemini-setup-banner');
+    if(banner) banner.style.display = 'none';
+  } else {
+    // Pré-remplir le champ si une clé existe déjà dans le code
+    setTimeout(()=>{
+      const inp = document.getElementById('gemini-key-input');
+      if(inp && !GEMINI_KEY.includes('Demo') && !GEMINI_KEY.includes('Remplacez')) {
+        inp.value = GEMINI_KEY;
+      }
+    }, 100);
+  }
+})();
 
 // ── TOAST ────────────────────────────────
 let toastTimer;
