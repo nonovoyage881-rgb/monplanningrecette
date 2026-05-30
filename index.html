@@ -1403,7 +1403,7 @@ function exportPlanningPDF(){
   doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(255,215,195);
   doc.text('Planning de la semaine',dX+6,18);
   doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
-  doc.text(fmtShort(dd[0])+' – '+fmtShort(dd[6]),dX+6,26);
+  doc.text(fmtShort(dd[0])+' - '+fmtShort(dd[6]),dX+6,26);
 
   // Date génération
   doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(220,190,175);
@@ -1460,7 +1460,7 @@ function exportPlanningPDF(){
     doc.setFontSize(8.5); doc.setFont('helvetica','bold');
     doc.text(day,cx+(colW-1.5)/2,gridTop+5,{align:'center'});
     doc.setFontSize(6.5); doc.setFont('helvetica','normal');
-    doc.setTextColor(isToday?[255,220,200]:MUTED);
+    doc.setTextColor(...(isToday?[255,220,200]:MUTED));
     doc.text(fmtShort(date),cx+(colW-1.5)/2,gridTop+9,{align:'center'});
 
     // ── Slot renderer ──
@@ -1483,13 +1483,13 @@ function exportPlanningPDF(){
         // Slot label
         doc.setTextColor(...WHITE);
         doc.setFontSize(5); doc.setFont('helvetica','bold');
-        doc.text((isMidi?'☀ MIDI':'☽ SOIR'),slotX+2,ySlot+3.3);
+        doc.text((isMidi?'MIDI':'SOIR'),slotX+2,ySlot+3.3);
 
         // Emoji in coloured square
         doc.setFillColor(...SAND);
         doc.roundedRect(slotX+1,ySlot+6,11,11,1,1,'F');
-        doc.setFontSize(12);
-        doc.text(r.emoji,slotX+1.8,ySlot+14.2);
+        doc.setFontSize(10);
+        try { doc.text(r.emoji||'',slotX+1.8,ySlot+14.2); } catch(e) { doc.text('🍽',slotX+1.8,ySlot+14.2); }
 
         // Recipe name — wrapped
         doc.setTextColor(...DARK);
@@ -1502,11 +1502,11 @@ function exportPlanningPDF(){
         doc.setFillColor(...SAND);
         doc.roundedRect(slotX+1,metaY,16,4,1,1,'F');
         doc.setTextColor(...MUTED); doc.setFontSize(5.5); doc.setFont('helvetica','normal');
-        doc.text('⏱ '+r.time+' min',slotX+2.5,metaY+2.8);
+        doc.text((r.time||'?')+' min',slotX+2.5,metaY+2.8);
 
         doc.setFillColor(...SAND);
         doc.roundedRect(slotX+19,metaY,18,4,1,1,'F');
-        doc.text(r.cal+' kcal',slotX+20.5,metaY+2.8);
+        doc.text((r.cal||'?')+' kcal',slotX+20.5,metaY+2.8);
 
         // Tag pill
         if(r.tags&&r.tags[0]){
@@ -1550,7 +1550,7 @@ function exportPlanningPDF(){
   doc.setFillColor(...SAND); doc.rect(0,fY-3,W,10,'F');
   doc.setFillColor(...TERRA); doc.rect(0,fY-3,3,10,'F');
   doc.setTextColor(...MUTED); doc.setFontSize(6.5); doc.setFont('helvetica','normal');
-  doc.text('MonMenu — votre planning de cuisine personnalisé',M+2,fY+1.5);
+  doc.text('MonMenu - votre planning de cuisine personnalisé',M+2,fY+1.5);
   doc.setFont('helvetica','bold'); doc.setTextColor(...TERRA);
   doc.text(fmtMonth(dd[0]),W-M,fY+1.5,{align:'right'});
 
@@ -1569,7 +1569,7 @@ function exportPDF(){
   // Header
   doc.setFillColor(...GH);doc.rect(0,0,W,30,'F');
   doc.setTextColor(255,255,255);doc.setFontSize(18);doc.setFont('helvetica','bold');
-  doc.text('MonMenu – Liste de courses',M,14);
+  doc.text('MonMenu - Liste de courses',M,14);
   doc.setFontSize(9);doc.setFont('helvetica','normal');
   doc.text('Semaine du '+f(dd[0])+' au '+f(dd[6]),M,21);
   doc.text('Généré le '+new Date().toLocaleDateString('fr-FR'),W-M,21,{align:'right'});
